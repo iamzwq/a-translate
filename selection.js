@@ -142,6 +142,9 @@
     if (active?.matches?.('input,textarea') || active?.isContentEditable) return null;
     const text = sel.toString().trim();
     if (!text || text.length > MAX_CHARS || !/\p{L}/u.test(text)) return null;
+    const common = sel.getRangeAt(0).commonAncestorContainer;
+    const el = common.nodeType === 1 ? common : common.parentElement;
+    if (el?.closest('.st-translation,.st-yt-overlay')) return null;
     const rects = sel.getRangeAt(0).getClientRects();
     return { text, rect: sel.getRangeAt(0).getBoundingClientRect(), last: rects[rects.length - 1] };
   }

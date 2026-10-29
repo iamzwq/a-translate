@@ -20,6 +20,11 @@
   let shownTr = null;
   let pumping = false;
   let retryAt = 0;
+  let trOnly = false;
+  chrome.storage.sync.get({ ytTrOnly: false }).then((s) => setTrOnly(s.ytTrOnly)).catch(() => {});
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'sync' && changes.ytTrOnly) setTrOnly(changes.ytTrOnly.newValue);
+  });
   const resizeObserver = new ResizeObserver(() => fitFont());
 
   window.addEventListener('message', (e) => {
@@ -169,6 +174,12 @@
     pump(sentences, t);
   }
 
+  function setTrOnly(value) {
+    trOnly = !!value;
+    shown = null;
+    update();
+  }
+
   function hide() {
     document.querySelectorAll('.st-yt-on').forEach((p) => p.classList.remove('st-yt-on'));
     if (overlay) overlay.hidden = true;
@@ -201,6 +212,8 @@
     src.textContent = s?.text || '';
     tr.textContent = s?.tr || '';
     tr.parentElement.hidden = !s?.tr;
+    // In translation-only mode, fall back to the source line until its translation arrives.
+    src.parentElement.hidden = trOnly && !!s?.tr;
     overlay.hidden = !s;
   }
 

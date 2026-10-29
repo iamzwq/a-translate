@@ -105,7 +105,7 @@
           <li>点击扩展图标或按快捷键翻译整页，再次触发切换显示 / 隐藏</li>
           <li>鼠标悬停在段落上单独按一下 <kbd>Ctrl</kbd> 翻译该段落，再按一次移除</li>
           <li>选中文字后点击旁边的「译」划词翻译；点 📌 固定后，新选中的文字直接在浮窗中翻译</li>
-          <li>YouTube 打开字幕（CC）即显示双语字幕</li>
+          <li>YouTube 打开字幕（CC）即显示双语字幕（可在下方设为仅显示译文）</li>
           <li>用快捷键或扩展面板打开独立翻译窗口，可拖到桌面任意位置</li>
           <li><a href="#" id="shortcuts">修改快捷键</a></li>
         </ul>
@@ -128,6 +128,15 @@
       </div>
 
       <div class="separator"></div>
+
+      <div class="field">
+        <label for="ytTrOnly">YouTube 字幕</label>
+        <select id="ytTrOnly">
+          <option value="">双语（原文 + 译文）</option>
+          <option value="1">仅显示译文</option>
+        </select>
+        <p class="hint">修改后立即生效</p>
+      </div>
 
       <div class="field">
         <div class="section-head">

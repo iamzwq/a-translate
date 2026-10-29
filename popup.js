@@ -54,7 +54,7 @@ $('engine').addEventListener('change', async (e) => {
 $('toggle').addEventListener('click', async () => {
   $('error').hidden = true;
   const res = await chrome.runtime.sendMessage({ type: 'toggleTab', tabId });
-  if (res?.ok) render(res.result);
+  if (res?.ok) window.close();
   else showError(`无法在此页面运行：${res?.error || '未知错误'}`);
 });
 
