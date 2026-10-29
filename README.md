@@ -2,14 +2,15 @@
 
 非常极简的网页翻译扩展（Chrome / Edge，Manifest V3），支持网页翻译和 YouTube 双语字幕。
 
-市面上已经有很多翻译插件，但对我来说都过于冗余了，我不需要太多的功能，所以子集做了个极简的。
+市面上已经有很多翻译插件，但对我来说都过于冗余了，我不需要太多的功能，所以自己做了个极简的。
 
 ![小 A 翻译截图](./screenshots/image.png)
 
 ## 安装
 本扩展未上架应用商店，需要以「开发者模式」手动加载：
 
-1. 下载或克隆本仓库到本地，例如 `D:\a-translate`（加载后请勿移动或删除该文件夹）
+1. 在 [Releases](https://github.com/iamzwq/a-translate/releases/latest) 页面下载最新的 `a-translate-vX.Y.Z.zip`，解压到本地固定位置，例如 `D:\a-translate`（加载后请勿移动或删除该文件夹）
+   - 也可以直接克隆本仓库：`git clone https://github.com/iamzwq/a-translate.git`
 2. 在浏览器地址栏打开扩展管理页：
    - Chrome：`chrome://extensions`
    - Edge：`edge://extensions`
@@ -19,7 +20,8 @@
 6. 打开 `chrome://extensions/shortcuts`（Edge 为 `edge://extensions/shortcuts`），确认「小 A 翻译」的快捷键为 `Alt+A`；若为空或与其他扩展冲突，可在此手动设置
 
 ### 更新
-修改或拉取新代码后，在扩展管理页点击「小 A 翻译」卡片上的刷新按钮，并刷新已打开的网页。
+1. 从 [Releases](https://github.com/iamzwq/a-translate/releases/latest) 下载新版 zip，解压后覆盖原文件夹（若是克隆的仓库，执行 `git pull` 即可）
+2. 在扩展管理页点击「小 A 翻译」卡片上的刷新按钮，并刷新已打开的网页
 
 > 默认快捷键只在首次安装时生效。如果更新后快捷键缺失，请移除扩展后重新加载，或按第 6 步手动设置。
 
