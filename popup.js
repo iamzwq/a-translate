@@ -26,8 +26,6 @@ async function init() {
 
   const commands = await chrome.commands.getAll();
   const shortcut = commands.find((c) => c.name === 'toggle-translate')?.shortcut || '';
-  $('shortcut').textContent = shortcut;
-  $('shortcutHint').hidden = !shortcut;
   $('shortcutTip').hidden = !!shortcut;
 
   const { engineId, engines } = await loadSettings();
@@ -68,6 +66,11 @@ $('setShortcut').addEventListener('click', (e) => {
 
 $('settings').addEventListener('click', () => {
   chrome.runtime.openOptionsPage();
+  window.close();
+});
+
+$('openWindow').addEventListener('click', async () => {
+  await chrome.runtime.sendMessage({ type: 'openWindow' });
   window.close();
 });
 

@@ -28,6 +28,10 @@ async function toggleTab(tabId) {
 }
 
 chrome.commands.onCommand.addListener(async (command) => {
+  if (command === 'open-window') {
+    await openWindow('');
+    return;
+  }
   if (command !== 'toggle-translate') return;
   try {
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
@@ -42,6 +46,12 @@ const handlers = {
   toggleTab: (msg) => toggleTab(msg.tabId),
   testOpenAI: (msg) => translateOpenAI(['Hello, world!'], { ...AI_DEFAULTS, ...msg.cfg }),
   translate: (msg) => translate(msg.texts),
+  openWindow: (msg) => openWindow(msg.text || ''),
+  takeWindowText: async () => {
+    const text = pendingWindowText;
+    pendingWindowText = '';
+    return text;
+  },
 };
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -52,6 +62,35 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (e) => sendResponse({ ok: false, error: String(e.message || e) }),
   );
   return true;
+});
+
+// Standalone translate window: a popup-type browser window that outlives the page it was opened from.
+const WINDOW_URL = chrome.runtime.getURL('window.html');
+const WINDOW_BOUNDS_KEY = 'windowBounds';
+// Text for a window that is still loading; it fetches this once ready.
+let pendingWindowText = '';
+
+async function findWindowId() {
+  const [ctx] = await chrome.runtime.getContexts?.({ contextTypes: ['TAB'], documentUrls: [WINDOW_URL] }) || [];
+  return ctx?.windowId;
+}
+
+async function openWindow(text) {
+  const id = await findWindowId();
+  if (id != null) {
+    await chrome.windows.update(id, { focused: true });
+    if (text) chrome.runtime.sendMessage({ type: 'windowText', text }).catch(() => {});
+    return;
+  }
+  pendingWindowText = text;
+  const { [WINDOW_BOUNDS_KEY]: bounds } = await chrome.storage.local.get(WINDOW_BOUNDS_KEY);
+  await chrome.windows.create({ url: WINDOW_URL, type: 'popup', focused: true, width: 420, height: 520, ...bounds });
+}
+
+chrome.windows.onBoundsChanged.addListener(async (win) => {
+  if (win.id !== await findWindowId()) return;
+  const { left, top, width, height } = win;
+  await chrome.storage.local.set({ [WINDOW_BOUNDS_KEY]: { left, top, width, height } });
 });
 
 async function translate(texts) {

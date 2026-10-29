@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>小 A 翻译</title>
+  <link rel="icon" sizes="32x32" href="icons/icon-32.png">
+  <link rel="icon" sizes="128x128" href="icons/icon-128.png">
+  <link rel="stylesheet" href="ui.css">
+  <style>
+    html, body { height: 100%; }
+    body { display: flex; flex-direction: column; gap: 12px; padding: 12px; background: var(--card); }
+
+    textarea {
+      flex: 0 0 auto; height: 30%; min-height: 72px; padding: 8px 12px; resize: vertical;
+      border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px);
+      background: transparent; color: inherit; font: inherit; outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    textarea::placeholder { color: var(--muted-foreground); }
+    textarea:focus-visible {
+      border-color: var(--ring);
+      box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
+    }
+
+    .bar { display: flex; align-items: center; gap: 8px; }
+    .bar .hint { flex: 1; color: var(--muted-foreground); font-size: 12px; }
+    .bar button { height: 32px; padding: 0 12px; }
+
+    .result {
+      flex: 1; position: relative; min-height: 0; overflow: auto; padding: 10px 12px;
+      border-radius: var(--radius); background: var(--muted);
+      white-space: pre-wrap; overflow-wrap: anywhere;
+    }
+    .result:empty::before { content: '译文会显示在这里'; color: var(--muted-foreground); }
+    .result.loading { color: var(--muted-foreground); }
+    .result.error { color: var(--destructive); }
+  </style>
+</head>
+<body>
+  <textarea id="input" placeholder="输入或粘贴要翻译的文字" autofocus></textarea>
+  <div class="bar">
+    <span class="hint">停止输入后自动翻译，<kbd>Ctrl</kbd> + <kbd>Enter</kbd> 立即翻译</span>
+    <button id="copy" class="btn-outline">复制译文</button>
+  </div>
+  <div id="result" class="result"></div>
+  <script src="window.js"></script>
+</body>
+</html>
