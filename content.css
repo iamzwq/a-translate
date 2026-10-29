@@ -1,0 +1,33 @@
+.st-translation {
+  display: block !important;
+  margin-top: 0.25em;
+  opacity: 0.85;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+
+/* Inline inside <pre>; a leading newline in the text puts it on its own line without leaving a blank line. */
+.st-translation.st-code {
+  display: inline !important;
+  margin: 0;
+  white-space: pre-wrap;
+  font-style: italic;
+  user-select: none;
+}
+
+.st-translation.st-loading {
+  opacity: 0.4;
+}
+
+.st-translation.st-error {
+  color: #d33 !important;
+  font-size: 0.85em;
+  cursor: pointer;
+}
+
+html.st-hidden .st-translation:not(.st-hover) {
+  display: none !important;
+}

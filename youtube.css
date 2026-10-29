@@ -1,0 +1,50 @@
+.st-yt-on .ytp-caption-window-container {
+  display: none !important;
+}
+
+.st-yt-overlay {
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  bottom: 5%;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15em;
+  font-size: 20px;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+  transition: bottom 0.15s;
+}
+
+/* Lift above the control bar while it is visible. */
+.html5-video-player:not(.ytp-autohide) .st-yt-overlay {
+  bottom: calc(5% + 50px);
+}
+
+.st-yt-overlay[hidden],
+.st-yt-line[hidden],
+.ad-showing .st-yt-overlay {
+  display: none !important;
+}
+
+.st-yt-line span {
+  padding: 0.05em 0.35em;
+  border-radius: 3px;
+  background: rgba(8, 8, 8, 0.75);
+  color: #fff;
+  font-family: "YouTube Noto", Roboto, Arial, "Microsoft YaHei", sans-serif;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.st-yt-src span {
+  font-size: 0.8em;
+  opacity: 0.9;
+}
+
+.st-yt-tr span {
+  color: #ffe066;
+}

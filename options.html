@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>小 A 翻译 设置</title>
+  <link rel="stylesheet" href="ui.css">
+  <style>
+    body { padding: 48px 16px; background: var(--page); }
+
+    .card {
+      max-width: 520px;
+      margin: 0 auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) + 4px);
+      box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    }
+    .card-header { display: flex; gap: 12px; align-items: center; padding: 24px 24px 0; }
+    .card-header img { width: 40px; height: 40px; border-radius: var(--radius); }
+    .card-title { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.2; }
+    .card-description { margin: 4px 0 0; color: var(--muted-foreground); }
+    .card-content { display: grid; gap: 20px; padding: 24px; }
+    .card-footer {
+      position: sticky; bottom: 0;
+      display: flex; align-items: center; gap: 12px;
+      padding: 16px 24px; border-top: 1px solid var(--border);
+      background: var(--card);
+      border-radius: 0 0 calc(var(--radius) + 4px) calc(var(--radius) + 4px);
+    }
+
+    .field { display: grid; gap: 8px; }
+    label { font-weight: 500; line-height: 1; }
+    .hint { margin: 0; color: var(--muted-foreground); font-size: 13px; }
+    .separator { height: 1px; background: var(--border); }
+
+    .alert {
+      padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius);
+      color: var(--muted-foreground); font-size: 13px;
+    }
+    .alert strong { display: block; margin-bottom: 4px; color: var(--foreground); font-weight: 500; }
+    .alert ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+    .alert a { color: var(--foreground); }
+
+    input, select {
+      width: 100%; height: 36px; padding: 4px 12px;
+      border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px);
+      background: transparent; color: inherit; font: inherit;
+      box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      outline: none; transition: border-color .15s, box-shadow .15s;
+    }
+    input::placeholder { color: var(--muted-foreground); }
+    input:focus-visible, select:focus-visible {
+      border-color: var(--ring);
+      box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
+    }
+    select {
+      appearance: none; padding-right: 36px; cursor: pointer;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center;
+    }
+    select option { background: var(--card); color: var(--foreground); }
+
+    .profiles { display: grid; gap: 12px; }
+    .profile {
+      display: grid; gap: 12px; padding: 16px;
+      border: 1px solid var(--border); border-radius: var(--radius); background: var(--muted);
+    }
+    .profile.current { border-color: var(--ring); }
+    .profile input { background: var(--background); }
+    .profile-head { display: flex; gap: 8px; align-items: center; }
+    .profile-head input { font-weight: 500; }
+    .profile .row { display: grid; grid-template-columns: 3fr 2fr; gap: 12px; }
+    .profile label.field { font-weight: 400; line-height: 1.5; }
+    .profile .field > span { font-weight: 500; line-height: 1; font-size: 13px; }
+    .badge {
+      flex-shrink: 0; padding: 2px 8px; border-radius: 999px;
+      background: var(--primary); color: var(--primary-foreground); font-size: 12px; font-weight: 500;
+    }
+    .profile:not(.current) .badge { display: none; }
+    .key-wrap { position: relative; }
+    .key-wrap input { padding-right: 64px; }
+    .key-wrap button { position: absolute; top: 2px; right: 2px; height: 30px; padding: 0 10px; font-size: 12px; }
+    .section-head { display: flex; justify-content: space-between; align-items: center; }
+    .empty { margin: 0; padding: 16px; border: 1px dashed var(--border); border-radius: var(--radius); text-align: center; }
+
+    .test-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    #status, .test-status { color: var(--success); font-size: 13px; }
+    .test-status.fail, #status.fail { color: var(--destructive); }
+    #status.dirty { color: var(--muted-foreground); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="card-header">
+      <img src="icons/icon-128.png" alt="">
+      <div>
+        <h1 class="card-title">小 A 翻译</h1>
+        <p class="card-description">极简双语翻译 · 网页与 YouTube 字幕 · 目标语言：简体中文</p>
+      </div>
+    </div>
+
+    <div class="card-content">
+      <div class="alert">
+        <strong>使用方式</strong>
+        <ul>
+          <li>点击扩展图标或按 <kbd>Alt</kbd> + <kbd>A</kbd> 翻译整页，再次触发切换显示 / 隐藏</li>
+          <li>鼠标悬停在段落上单独按一下 <kbd>Ctrl</kbd> 翻译该段落，再按一次移除</li>
+          <li>YouTube 打开字幕（CC）即显示双语字幕</li>
+          <li><a href="#" id="shortcuts">修改快捷键</a></li>
+        </ul>
+      </div>
+
+      <div class="field">
+        <label for="engine">当前使用</label>
+        <select id="engine"></select>
+        <p class="hint">也可以在扩展弹出面板中随时切换</p>
+      </div>
+
+      <div class="field">
+        <div class="section-head">
+          <label>AI 翻译服务</label>
+          <button id="add" class="btn-outline">添加</button>
+        </div>
+        <p class="hint">任意 OpenAI 兼容接口，如 DeepSeek（https://api.deepseek.com/v1）</p>
+        <div id="profiles" class="profiles"></div>
+        <p id="empty" class="empty hint">还没有 AI 服务，点击「添加」配置</p>
+      </div>
+
+      <div class="separator"></div>
+
+      <div class="field">
+        <div class="section-head">
+          <label>翻译缓存 <span id="cacheSize" class="hint"></span></label>
+          <button id="clearCache" class="btn-outline">清除缓存</button>
+        </div>
+        <p class="hint">已翻译的内容会缓存到浏览器关闭为止；更换模型或译文有误时可手动清除</p>
+      </div>
+    </div>
+
+    <template id="profileTpl">
+      <div class="profile">
+        <div class="profile-head">
+          <input data-k="name" placeholder="名称（可选，默认显示模型名）" aria-label="名称">
+          <span class="badge">使用中</span>
+          <button class="btn-ghost remove">删除</button>
+        </div>
+        <div class="row">
+          <label class="field"><span>API Base URL</span><input data-k="apiBase" placeholder="https://api.openai.com/v1"></label>
+          <label class="field"><span>模型</span><input data-k="model" placeholder="gpt-4o-mini"></label>
+        </div>
+        <label class="field"><span>API Key</span>
+          <div class="key-wrap">
+            <input data-k="apiKey" type="password" placeholder="sk-..." autocomplete="off" aria-label="API Key">
+            <button type="button" class="btn-ghost reveal">显示</button>
+          </div>
+        </label>
+        <div class="test-row">
+          <button class="btn-outline test">测试连接</button><span class="test-status"></span>
+        </div>
+      </div>
+    </template>
+
+    <div class="card-footer">
+      <button id="save" class="btn-primary">保存</button><span id="status"></span>
+    </div>
+  </div>
+  <script src="config.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

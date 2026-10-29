@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>小 A 翻译</title>
+  <link rel="stylesheet" href="ui.css">
+  <style>
+    body { width: 300px; background: var(--card); }
+
+    header { display: flex; align-items: center; gap: 10px; padding: 16px 16px 0; }
+    header img { width: 32px; height: 32px; border-radius: 8px; }
+    #settings { width: 32px; height: 32px; padding: 0; margin-left: auto; align-self: flex-start; }
+    .title { font-weight: 600; line-height: 1.2; }
+    .sub { color: var(--muted-foreground); font-size: 12px; }
+
+    main { display: grid; gap: 12px; padding: 16px; }
+    #toggle { width: 100%; height: 44px; font-size: 15px; }
+    #toggle kbd { background: color-mix(in oklch, var(--primary-foreground) 18%, transparent); color: inherit; }
+    #shortcutHint { margin-left: 6px; opacity: .9; font-size: 12px; }
+    #toggle kbd:empty { display: none; }
+    #error { margin: 0; color: var(--destructive); font-size: 12px; }
+    #shortcutTip { margin: 0; color: var(--muted-foreground); font-size: 12px; }
+
+    .info {
+      margin: 0; padding: 4px 12px;
+      border-radius: var(--radius); background: var(--muted); font-size: 13px;
+    }
+    .info div { display: flex; justify-content: space-between; align-items: center; height: 32px; }
+    .info div + div { border-top: 1px solid var(--border); }
+    .info dt { color: var(--muted-foreground); }
+    .info dd { margin: 0; display: flex; align-items: center; gap: 4px; max-width: 170px; }
+    #engine {
+      max-width: 170px; height: 28px; padding: 0 22px 0 8px; margin-right: -8px;
+      border: none; border-radius: calc(var(--radius) - 4px); outline: none;
+      color: inherit; font: inherit; text-align: right; text-overflow: ellipsis; cursor: pointer;
+      appearance: none;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 6px center;
+    }
+    #engine:hover, #engine:focus-visible { background-color: var(--accent); }
+    #engine option { background: var(--card); color: var(--foreground); }
+    #cacheSize { color: var(--muted-foreground); }
+    #clearCache { height: 24px; padding: 0 8px; margin-right: -8px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="icons/icon-48.png" alt="">
+    <div>
+      <div class="title">小 A 翻译</div>
+      <div class="sub">翻译为简体中文</div>
+    </div>
+    <button id="settings" class="btn-ghost" title="设置" aria-label="设置">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+  </header>
+
+  <main>
+    <button id="toggle" class="btn-primary"><span id="toggleLabel">翻译此页</span><span id="shortcutHint">（<kbd id="shortcut"></kbd>）</span></button>
+    <p id="error" hidden></p>
+    <p id="shortcutTip" hidden>快捷键未设置，<a href="#" id="setShortcut">去设置 Alt+A</a></p>
+    <dl class="info">
+      <div><dt>翻译引擎</dt><dd><select id="engine" aria-label="翻译引擎"></select></dd></div>
+      <div><dt>段落翻译</dt><dd>悬停 + <kbd>Ctrl</kbd></dd></div>
+      <div><dt>翻译缓存</dt><dd><span id="cacheSize"></span><button id="clearCache" class="btn-ghost">清除</button></dd></div>
+    </dl>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
