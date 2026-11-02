@@ -22,7 +22,7 @@ async function toggleTab(tabId) {
     return await chrome.tabs.sendMessage(tabId, { type: 'toggle' });
   } catch {
     await chrome.scripting.insertCSS({ target: { tabId }, files: ['content.css'] });
-    await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js', 'selection.js'] });
     return chrome.tabs.sendMessage(tabId, { type: 'toggle' });
   }
 }
@@ -98,14 +98,15 @@ async function translate(texts) {
   const ai = engines.find((e) => e.id === engineId);
   const keys = await cacheKeys(ai ? `${ai.apiBase}|${ai.model}` : GOOGLE_ID, texts);
   const cached = await chrome.storage.session.get(keys);
-  const missing = keys.flatMap((k, i) => (k in cached ? [] : [i]));
+  // Unique keys, so repeated texts in one batch are translated once.
+  const missing = [...new Set(keys.filter((k) => !(k in cached)))];
   if (missing.length) {
-    const todo = missing.map((i) => texts[i]);
+    const todo = missing.map((k) => texts[keys.indexOf(k)]);
     const result = await (ai ? translateOpenAI(todo, ai) : translateGoogle(todo));
     const fresh = {};
-    missing.forEach((i, j) => {
-      cached[keys[i]] = result[j];
-      if (result[j] && !result.unverified?.[j]) fresh[keys[i]] = result[j];
+    missing.forEach((k, j) => {
+      cached[k] = result[j];
+      if (result[j] && !result.unverified?.[j]) fresh[k] = result[j];
     });
     try {
       await chrome.storage.session.set(fresh);

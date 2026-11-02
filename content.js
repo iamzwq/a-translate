@@ -36,10 +36,19 @@
   const stale = new Set();
   let staleTimer = null;
   const blockCache = new WeakMap();
+  // Became visible while translation was toggled off; re-observed on the next activation.
+  const deferred = [];
+  let pendingScan = new Set();
+  let scanTimer = null;
+  const isOurs = (n) => n.nodeType === 1 && n.classList.contains('st-translation');
 
   const io = new IntersectionObserver(async (entries) => {
     const els = entries.filter((e) => e.isIntersecting).map((e) => e.target);
     els.forEach((el) => io.unobserve(el));
+    if (!active) {
+      deferred.push(...els);
+      return;
+    }
     const skip = await Promise.all(els.map((el) => isChinese(stripCode(textOf(el)))));
     queue.push(...els.filter((el, i) => !skip[i] && !source.has(el)));
     scheduleFlush();
@@ -47,13 +56,29 @@
 
   const mo = new MutationObserver((mutations) => {
     for (const m of mutations) {
+      // Only our own holders were inserted: the page itself didn't change.
+      if (m.addedNodes.length && !m.removedNodes.length && [...m.addedNodes].every(isOurs)) continue;
       markStale(m.target);
       if (!active) continue;
       for (const n of m.addedNodes) {
-        if (n.nodeType === 1 && !n.classList.contains('st-translation')) scan(n);
+        if (n.nodeType === 1 && !isOurs(n)) pendingScan.add(n);
       }
     }
+    if (pendingScan.size && !scanTimer) scanTimer = setTimeout(scanPending, 50);
   });
+
+  // SPAs add content in many small mutations: scan each new subtree once, skipping those nested in another.
+  function scanPending() {
+    scanTimer = null;
+    const nodes = pendingScan;
+    pendingScan = new Set();
+    if (!active) return;
+    for (const n of nodes) {
+      let p = n.parentElement;
+      while (p && !nodes.has(p)) p = p.parentElement;
+      if (!p && n.isConnected) scan(n);
+    }
+  }
 
   function watch() {
     mo.observe(document.body, { childList: true, subtree: true, characterData: true });
@@ -119,7 +144,7 @@
   }, true);
 
   function hoverTranslate() {
-    if (mouseX < 0) return;
+    if (mouseX < 0 || !alive()) return;
     const textNode = textNodeAt(mouseX, mouseY);
     let target = textNode?.parentElement || document.elementFromPoint(mouseX, mouseY);
     if (!target) return;
@@ -247,6 +272,8 @@
     if (!active) return;
     // Rescan on every activation: content added while hidden was ignored by the observer.
     scan(document.body);
+    deferred.splice(0).forEach((el) => el.isConnected && io.observe(el));
+    flush();
     if (!started) {
       started = true;
       watch();
@@ -414,6 +441,18 @@
     holder.replaceChildren(...nodes);
   }
 
+  // After the extension is reloaded or updated, this orphaned script can no longer reach chrome.* APIs.
+  function alive() {
+    if (chrome.runtime?.id) return true;
+    io.disconnect();
+    mo.disconnect();
+    clearTimeout(flushTimer);
+    clearTimeout(scanTimer);
+    clearTimeout(staleTimer);
+    queue.length = 0;
+    return false;
+  }
+
   function scheduleFlush() {
     clearTimeout(flushTimer);
     flushTimer = setTimeout(flush, 100);
@@ -421,7 +460,8 @@
 
   // Cap in-flight batches so fast scrolling on long pages doesn't trigger rate limits (HTTP 429).
   function flush() {
-    while (queue.length && running < MAX_CONCURRENT) {
+    if (!alive()) return;
+    while (active && queue.length && running < MAX_CONCURRENT) {
       // SPAs may have removed queued elements before their turn.
       const batch = queue.splice(0, BATCH_SIZE).filter((el) => el.isConnected);
       if (!batch.length) continue;
@@ -451,7 +491,7 @@
     try {
       res = await chrome.runtime.sendMessage({ type: 'translate', texts });
     } catch (e) {
-      res = { ok: false, error: String(e) };
+      res = { ok: false, error: chrome.runtime?.id ? String(e) : '扩展已更新，请刷新页面' };
     }
     holders.forEach((h, i) => {
       h.classList.remove('st-loading');

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "小 A 翻译",
-  "version": "1.1.1",
-  "description": "极简双语对照翻译：快捷键一键翻译整页，悬停段落按 Ctrl 单独翻译；YouTube 打开字幕即显示双语字幕。",
+  "version": "2026.11.2",
+  "description": "比同类翻译插件更轻量，只专注两件事：网页双语对照翻译、YouTube 双语字幕。无冗余功能。",
   "permissions": ["storage", "scripting"],
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js" },
@@ -12,13 +12,13 @@
     "css": ["content.css"],
     "run_at": "document_idle"
   }, {
-    "matches": ["https://www.youtube.com/*"],
+    "matches": ["https://www.youtube.com/*", "https://m.youtube.com/*", "https://www.youtube-nocookie.com/*"],
     "js": ["youtube-hook.js"],
     "run_at": "document_start",
     "world": "MAIN",
     "all_frames": true
   }, {
-    "matches": ["https://www.youtube.com/*"],
+    "matches": ["https://www.youtube.com/*", "https://m.youtube.com/*", "https://www.youtube-nocookie.com/*"],
     "js": ["youtube.js"],
     "css": ["youtube.css"],
     "run_at": "document_start",
