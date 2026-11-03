@@ -1,14 +1,14 @@
 {
   "manifest_version": 3,
   "name": "小 A 翻译",
-  "version": "2026.11.2",
+  "version": "2026.11.3",
   "description": "比同类翻译插件更轻量，只专注两件事：网页双语对照翻译、YouTube 双语字幕。无冗余功能。",
   "permissions": ["storage", "scripting"],
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js" },
   "content_scripts": [{
     "matches": ["<all_urls>"],
-    "js": ["content.js", "selection.js"],
+    "js": ["config.js", "content.js", "selection.js"],
     "css": ["content.css"],
     "run_at": "document_idle"
   }, {

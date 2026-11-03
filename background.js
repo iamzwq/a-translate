@@ -22,7 +22,7 @@ async function toggleTab(tabId) {
     return await chrome.tabs.sendMessage(tabId, { type: 'toggle' });
   } catch {
     await chrome.scripting.insertCSS({ target: { tabId }, files: ['content.css'] });
-    await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js', 'selection.js'] });
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['config.js', 'content.js', 'selection.js'] });
     return chrome.tabs.sendMessage(tabId, { type: 'toggle' });
   }
 }
@@ -45,7 +45,7 @@ chrome.commands.onCommand.addListener(async (command) => {
 const handlers = {
   toggleTab: (msg) => toggleTab(msg.tabId),
   testOpenAI: (msg) => translateOpenAI(['Hello, world!'], { ...AI_DEFAULTS, ...msg.cfg }),
-  translate: (msg) => translate(msg.texts),
+  translate: (msg) => translate(msg.texts, Object.hasOwn(LANG_NAMES, msg.lang) ? msg.lang : TARGET_LANG),
   openWindow: (msg) => openWindow(msg.text || ''),
   takeWindowText: async () => {
     const text = pendingWindowText;
@@ -93,16 +93,16 @@ chrome.windows.onBoundsChanged.addListener(async (win) => {
   await chrome.storage.local.set({ [WINDOW_BOUNDS_KEY]: { left, top, width, height } });
 });
 
-async function translate(texts) {
+async function translate(texts, lang) {
   const { engineId, engines } = await loadSettings();
   const ai = engines.find((e) => e.id === engineId);
-  const keys = await cacheKeys(ai ? `${ai.apiBase}|${ai.model}` : GOOGLE_ID, texts);
+  const keys = await cacheKeys(`${lang}|${ai ? `${ai.apiBase}|${ai.model}` : GOOGLE_ID}`, texts);
   const cached = await chrome.storage.session.get(keys);
   // Unique keys, so repeated texts in one batch are translated once.
   const missing = [...new Set(keys.filter((k) => !(k in cached)))];
   if (missing.length) {
     const todo = missing.map((k) => texts[keys.indexOf(k)]);
-    const result = await (ai ? translateOpenAI(todo, ai) : translateGoogle(todo));
+    const result = await (ai ? translateOpenAI(todo, ai, lang) : translateGoogle(todo, lang));
     const fresh = {};
     missing.forEach((k, j) => {
       cached[k] = result[j];
@@ -127,7 +127,7 @@ function cacheKeys(engineKey, texts) {
   }));
 }
 
-async function translateGoogle(texts) {
+async function translateGoogle(texts, lang) {
   // Pack texts into ~4500-char requests separated by numbered markers.
   const groups = [];
   let len = Infinity;
@@ -144,17 +144,17 @@ async function translateGoogle(texts) {
     let parts = null;
     if (idx.length > 1) {
       const joined = idx.map((i, k) => (k ? `\n⟦${k}⟧\n` : '') + texts[i]).join('');
-      parts = (await googleRequest(joined)).split(/\s*⟦\s*\d+\s*⟧\s*/);
+      parts = (await googleRequest(joined, lang)).split(/\s*⟦\s*\d+\s*⟧\s*/);
     }
     // A mangled marker breaks the split; fall back to one request per text.
-    if (parts?.length !== idx.length) parts = await Promise.all(idx.map((i) => googleRequest(texts[i])));
+    if (parts?.length !== idx.length) parts = await Promise.all(idx.map((i) => googleRequest(texts[i], lang)));
     idx.forEach((i, k) => { out[i] = parts[k].trim(); });
   }));
   return out;
 }
 
-async function googleRequest(text) {
-  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&dt=t&tl=${TARGET_LANG}`;
+async function googleRequest(text, lang) {
+  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&dt=t&tl=${lang}`;
   // POST keeps long non-Latin texts from exceeding the URL length limit.
   const res = await fetchRetry(url, { method: 'POST', body: new URLSearchParams({ q: text }) });
   if (!res.ok) throw new Error(`Google 翻译请求失败: HTTP ${res.status}`);
@@ -183,7 +183,7 @@ const NO_THINKING_PARAMS = {
 // Endpoints (apiBase|model) that rejected NO_THINKING_PARAMS, e.g. the official OpenAI API.
 const noThinkingUnsupported = new Set();
 
-async function translateOpenAI(texts, cfg) {
+async function translateOpenAI(texts, cfg, lang = TARGET_LANG) {
   if (!cfg.apiKey) throw new Error('请先在扩展设置中填写 API Key');
   const url = `${cfg.apiBase.replace(/\/+$/, '')}/chat/completions`;
   const key = `${url}|${cfg.model}`;
@@ -193,7 +193,7 @@ async function translateOpenAI(texts, cfg) {
     messages: [
       {
         role: 'system',
-        content: 'You are a professional translator. Translate each string in the given JSON array into Simplified Chinese. '
+        content: `You are a professional translator. Translate each string in the given JSON array into ${LANG_NAMES[lang]}. `
           + 'Text wrapped in backticks is code: keep it verbatim, including the backticks. '
           + 'Tags like <a1>...</a1> mark links: keep each tag pair, wrapped around the matching translated words. '
           + 'Return ONLY a JSON array of strings with exactly the same length and order. Do not add explanations.',
@@ -226,7 +226,7 @@ async function translateOpenAI(texts, cfg) {
   if (Array.isArray(arr) && arr.length === texts.length) return arr.map(String);
   // Model broke the array format; fall back to one request per text.
   if (texts.length > 1) {
-    const parts = await Promise.all(texts.map((t) => translateOpenAI([t], cfg)));
+    const parts = await Promise.all(texts.map((t) => translateOpenAI([t], cfg, lang)));
     return Object.assign(parts.map((r) => r[0]), { unverified: parts.map((r) => !!r.unverified?.[0]) });
   }
   // Raw reply is shown but not cached, in case it isn't a clean translation.

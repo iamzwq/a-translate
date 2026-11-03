@@ -1,4 +1,17 @@
 const TARGET_LANG = 'zh-CN';
+// Target languages: Google `tl` code -> name used in the AI prompt.
+const LANG_NAMES = { 'zh-CN': 'Simplified Chinese', en: 'English' };
+
+async function isChinese(text) {
+  try {
+    const { isReliable, languages } = await chrome.i18n.detectLanguage(text);
+    if (isReliable) return !!languages[0]?.language.startsWith('zh');
+  } catch { /* detection unavailable: use the script heuristic */ }
+  // Kana or Hangul means Japanese/Korean even when Han characters dominate.
+  if (/[\u3040-\u30ff\uac00-\ud7af]/.test(text)) return false;
+  const cjk = text.match(/[\u4e00-\u9fff]/g);
+  return !!cjk && cjk.length / text.replace(/\s/g, '').length > 0.3;
+}
 
 // Google is built in; only AI engines are stored, as `engines: [{ id, ...AI_DEFAULTS }]` plus the selected `engineId`.
 const GOOGLE_ID = 'google';

@@ -280,17 +280,6 @@
     }
   }
 
-  async function isChinese(text) {
-    try {
-      const { isReliable, languages } = await chrome.i18n.detectLanguage(text);
-      if (isReliable) return !!languages[0]?.language.startsWith('zh');
-    } catch { /* detection unavailable: use the script heuristic */ }
-    // Kana or Hangul means Japanese/Korean even when Han characters dominate.
-    if (/[\u3040-\u30ff\uac00-\ud7af]/.test(text)) return false;
-    const cjk = text.match(/[\u4e00-\u9fff]/g);
-    return !!cjk && cjk.length / text.replace(/\s/g, '').length > 0.3;
-  }
-
   function hasOwnText(el) {
     return [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
   }
