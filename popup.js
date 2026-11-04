@@ -80,5 +80,6 @@ $('clearCache').addEventListener('click', async () => {
   await showCacheSize();
 });
 showCacheSize();
+bindDisplaySettings();
 
 init();

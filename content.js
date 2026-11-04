@@ -42,6 +42,18 @@
   let scanTimer = null;
   const isOurs = (n) => n.nodeType === 1 && n.classList.contains('st-translation');
 
+  // Set on our own nodes rather than a page-level stylesheet, which the page could replace.
+  let trColor = TR_COLOR;
+  const paint = (n) => n.style.setProperty('--st-tr-color', trColor);
+  const setColor = (c) => {
+    trColor = isColor(c) ? c : TR_COLOR;
+    document.querySelectorAll('.st-translation').forEach(paint);
+  };
+  chrome.storage.sync.get({ trColor: TR_COLOR }).then((s) => setColor(s.trColor)).catch(() => {});
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'sync' && changes.trColor) setColor(changes.trColor.newValue);
+  });
+
   const io = new IntersectionObserver(async (entries) => {
     const els = entries.filter((e) => e.isIntersecting).map((e) => e.target);
     els.forEach((el) => io.unobserve(el));
@@ -470,6 +482,7 @@
       const holder = document.createElement('font');
       holder.className = hover ? 'st-translation st-hover st-loading' : 'st-translation st-loading';
       if (isCodeComment(el)) holder.classList.add('st-code');
+      paint(holder);
       holder.textContent = '…';
       // A retry may run after the page changed, so the stored anchor can be gone.
       const before = partial.get(el)?.before;

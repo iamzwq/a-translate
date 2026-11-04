@@ -1,4 +1,4 @@
-importScripts('config.js');
+importScripts('config.js', 'utils.js');
 
 // v1.0 stored a single engine as top-level engine / apiBase / apiKey / model.
 chrome.runtime.onInstalled.addListener(async () => {
@@ -22,7 +22,7 @@ async function toggleTab(tabId) {
     return await chrome.tabs.sendMessage(tabId, { type: 'toggle' });
   } catch {
     await chrome.scripting.insertCSS({ target: { tabId }, files: ['content.css'] });
-    await chrome.scripting.executeScript({ target: { tabId }, files: ['config.js', 'content.js', 'selection.js'] });
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['config.js', 'utils.js', 'content.js', 'selection.js'] });
     return chrome.tabs.sendMessage(tabId, { type: 'toggle' });
   }
 }

@@ -21,9 +21,16 @@
   let pumping = false;
   let retryAt = 0;
   let trOnly = false;
-  chrome.storage.sync.get({ ytTrOnly: false }).then((s) => setTrOnly(s.ytTrOnly)).catch(() => {});
+  // No config.js / utils.js here (they would be loaded twice next to content.js); youtube.css holds the default color.
+  let trColor = '';
+  chrome.storage.sync.get({ ytTrOnly: false, trColor: '' }).then((s) => {
+    setColor(s.trColor);
+    setTrOnly(s.ytTrOnly);
+  }).catch(() => {});
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'sync' && changes.ytTrOnly) setTrOnly(changes.ytTrOnly.newValue);
+    if (area !== 'sync') return;
+    if (changes.trColor) setColor(changes.trColor.newValue);
+    if (changes.ytTrOnly) setTrOnly(changes.ytTrOnly.newValue);
   });
   const resizeObserver = new ResizeObserver(() => fitFont());
 
@@ -180,6 +187,11 @@
     update();
   }
 
+  function setColor(value) {
+    trColor = /^#[0-9a-f]{6}$/i.test(value) ? value : '';
+    overlay?.style.setProperty('--st-tr-color', trColor || null);
+  }
+
   function hide() {
     document.querySelectorAll('.st-yt-on').forEach((p) => p.classList.remove('st-yt-on'));
     if (overlay) overlay.hidden = true;
@@ -191,6 +203,7 @@
       // Built with nodes: YouTube enforces Trusted Types on innerHTML.
       overlay = document.createElement('div');
       overlay.className = 'st-yt-overlay';
+      setColor(trColor);
       for (const cls of ['st-yt-src', 'st-yt-tr']) {
         const line = document.createElement('div');
         line.className = `st-yt-line ${cls}`;

@@ -1,12 +1,11 @@
 .st-translation {
   display: block !important;
   margin-top: 0.25em;
-  opacity: 0.85;
   font-family: inherit;
   font-size: inherit;
   font-weight: inherit;
   line-height: inherit;
-  color: inherit;
+  color: var(--st-tr-color, #6366f1);
 }
 
 /* Inline inside <pre>; a leading newline in the text puts it on its own line without leaving a blank line. */

@@ -46,5 +46,5 @@
 }
 
 .st-yt-tr span {
-  color: #ffe066;
+  color: var(--st-tr-color, #6366f1);
 }

@@ -91,9 +91,7 @@ $('clearCache').addEventListener('click', async () => {
   await showCacheSize();
 });
 showCacheSize();
-
-chrome.storage.sync.get({ ytTrOnly: false }).then((s) => { $('ytTrOnly').value = s.ytTrOnly ? '1' : ''; });
-$('ytTrOnly').addEventListener('change', (e) => chrome.storage.sync.set({ ytTrOnly: !!e.target.value }));
+bindDisplaySettings();
 
 $('add').addEventListener('click', () => {
   const node = addProfile({ ...AI_DEFAULTS, id: newEngineId() });
