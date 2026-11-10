@@ -20,13 +20,18 @@ async function init() {
     $('toggleLabel').textContent = '当前页面不支持翻译';
   } else {
     // No content script yet (e.g. tab opened before install) means the page is untranslated.
-    const state = await chrome.tabs.sendMessage(tabId, { type: 'getState' }).catch(() => null);
+    const state = await chrome.tabs.sendMessage(tabId, { type: 'getState' }, { frameId: 0 }).catch(() => null);
     render(state);
   }
+  try {
+    $('ytRow').hidden = !/(^|\.)youtube(-nocookie)?\.com$/.test(new URL(tab.url).hostname);
+  } catch { /* no URL for this tab */ }
 
   const commands = await chrome.commands.getAll();
   const shortcut = commands.find((c) => c.name === 'toggle-translate')?.shortcut || '';
   $('shortcutTip').hidden = !!shortcut;
+  $('toggleKey').replaceChildren(...(shortcut ? shortcut.split('+') : [])
+    .map((k) => Object.assign(document.createElement('kbd'), { textContent: k })));
 
   const { engineId, engines } = await loadSettings();
   const sel = $('engine');
@@ -74,12 +79,12 @@ $('openWindow').addEventListener('click', async () => {
   window.close();
 });
 
-const showCacheSize = async () => { $('cacheSize').textContent = await cacheSizeLabel(); };
-$('clearCache').addEventListener('click', async () => {
-  await clearCache();
-  await showCacheSize();
+bindTargetLang($('targetLang'));
+bindSetting('ytTrOnly', $('ytTrOnly'), YT_DEFAULTS.ytTrOnly);
+const showTargetName = (lang) => { $('targetName').textContent = LANG_LABELS[validLang(lang)]; };
+getTargetLang().then(showTargetName);
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'sync' && changes.targetLang) showTargetName(changes.targetLang.newValue);
 });
-showCacheSize();
-bindDisplaySettings();
 
 init();

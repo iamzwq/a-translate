@@ -1,12 +1,14 @@
+/* Invisible rather than display:none, so live streams can still read the caption text from it. */
 .st-yt-on .ytp-caption-window-container {
-  display: none !important;
+  visibility: hidden !important;
 }
 
+/* --st-yt-bottom is the dragged height; Shorts start higher, clear of their title and buttons. */
 .st-yt-overlay {
   position: absolute;
   left: 5%;
   right: 5%;
-  bottom: 5%;
+  bottom: var(--st-yt-bottom, var(--st-yt-default, 5%));
   z-index: 40;
   display: flex;
   flex-direction: column;
@@ -19,9 +21,18 @@
   transition: bottom 0.15s;
 }
 
+#shorts-player .st-yt-overlay {
+  --st-yt-default: 22%;
+}
+
 /* Lift above the control bar while it is visible. */
 .html5-video-player:not(.ytp-autohide) .st-yt-overlay {
-  bottom: calc(5% + 50px);
+  bottom: max(var(--st-yt-bottom, var(--st-yt-default, 5%)), calc(5% + 50px));
+}
+
+.st-yt-overlay.st-yt-dragging {
+  bottom: var(--st-yt-bottom) !important;
+  transition: none;
 }
 
 .st-yt-overlay[hidden],
@@ -31,13 +42,22 @@
 }
 
 .st-yt-line span {
-  padding: 0.05em 0.35em;
-  border-radius: 3px;
-  background: rgba(8, 8, 8, 0.75);
+  padding: 0.3em 0.35em;
+  border-radius: 5px;
+  background: rgba(8, 8, 8, var(--st-yt-bg-alpha, 0.75));
   color: #fff;
   font-family: "YouTube Noto", Roboto, Arial, "Microsoft YaHei", sans-serif;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.9), 0 1px 3px rgba(0, 0, 0, 0.6);
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+
+.st-yt-dragging .st-yt-line span {
+  cursor: grabbing;
 }
 
 .st-yt-src span {
@@ -46,5 +66,5 @@
 }
 
 .st-yt-tr span {
-  color: var(--st-tr-color, #6366f1);
+  color: var(--st-tr-color, #fff);
 }

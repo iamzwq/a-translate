@@ -11,19 +11,30 @@
     'MARK', 'ABBR', 'TIME', 'FONT', 'LABEL', 'CODE', 'KBD', 'BR', 'IMG', 'CITE', 'Q', 'DFN', 'VAR', 'BDI', 'BDO', 'WBR']);
   // A text that is entirely a URL, email, version, @handle, path or file name.
   const NON_PROSE_RE = /^(?:(?:https?:\/\/|www\.)\S+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+|v?\d+(?:\.\d+)+[\w.-]*|@[\w.-]+|\S*[\/\\]\S*|[\w-]+\.[a-z0-9]{1,5})$/i;
-  const LINK_TAG_RE = /<\s*a\s*(\d+)\s*>([\s\S]*?)<\s*\/\s*a\s*\1\s*>/gi;
+  // Inline elements kept in the translation: sent as <aN>…</aN> (the existing link syntax), N indexing serialize().els.
+  const FORMAT_SELECTOR = 'a[href],b,strong,i,em,u,s,del,ins,mark,small,sub,sup,q,abbr,cite,dfn';
+  // Beyond this many formatted spans only links keep their tags, so the text stays readable for the translator.
+  const MAX_TAGS = 20;
+  const TAG_RE = /<\s*(\/?)\s*a\s*(\d+)\s*>/gi;
   // Comment classes of highlight.js / Prism / CodeMirror, GitHub, Pygments / Rouge, plus our own wrapper.
   const COMMENT_SELECTOR = '[class*="comment"],.pl-c,.c,.c1,.cm,.ch,.cs,.st-comment-src';
   // Line/block comments in un-highlighted code; `#` and `--` must be followed by whitespace to skip #include, #fff, etc.
   const PLAIN_COMMENT_RE = /\/\*[\s\S]*?\*\/|<!--[\s\S]*?-->|(?<![:\w"'\/])\/\/[^\n]*|(?<=^|\s)#(?=\s)[^\n]*|(?<=^|\s)--(?=\s)[^\n]*/gm;
-  const BATCH_SIZE = 8;
+  const MAX_BATCH_ITEMS = 16;
+  const MAX_BATCH_CHARS = 2400;
   const MAX_CHARS = 3000;
   const MAX_CONCURRENT = 3;
 
   let active = false;
   let started = false;
+  let targetLang = TARGET_LANG;
+  // Base code of the page's main language; decides paragraphs too short to detect on their own.
+  let pageLang = '';
+  let pageLangReady = null;
   const done = new WeakSet();
   const queue = [];
+  // Text length of queued elements, for packing batches by size.
+  const lengths = new WeakMap();
   let flushTimer = null;
   let running = 0;
   // Hover target that contains nested blocks: translate only its own text, placed before the first nested block.
@@ -41,17 +52,35 @@
   let pendingScan = new Set();
   let scanTimer = null;
   const isOurs = (n) => n.nodeType === 1 && n.classList.contains('st-translation');
+  const isFrame = window !== window.top;
+  // Shadow trees we translate in: content.css doesn't reach into them, so they adopt these rules. Held weakly, as
+  // infinite-scroll pages create and drop components all the time.
+  const adopted = new WeakSet();
+  const shadowRefs = new Set();
+  const SHADOW_CSS = `.st-translation{display:block!important;margin-top:.25em;font:inherit;color:var(--st-tr-color,#6366f1)}
+.st-translation.st-code{display:inline!important;margin:0;white-space:pre-wrap;font-style:italic;user-select:none}
+.st-translation.st-loading{opacity:.4}
+.st-translation.st-error{color:#d33!important;font-size:.85em;cursor:pointer}
+:host-context(html.st-hidden) .st-translation:not(.st-hover){display:none!important}`;
+  let shadowSheet = null;
+  const MO_OPTIONS = { childList: true, subtree: true, characterData: true };
+  // Closed roots need the extension API, and only custom elements are likely to have one; open ones are a plain read.
+  const shadowOf = (el) => el.shadowRoot
+    ?? (el.localName.includes('-') ? chrome.dom?.openOrClosedShadowRoot?.(el) ?? null : null);
 
   // Set on our own nodes rather than a page-level stylesheet, which the page could replace.
   let trColor = TR_COLOR;
   const paint = (n) => n.style.setProperty('--st-tr-color', trColor);
   const setColor = (c) => {
     trColor = isColor(c) ? c : TR_COLOR;
-    document.querySelectorAll('.st-translation').forEach(paint);
+    [document, ...liveShadowRoots()].forEach((r) => r.querySelectorAll('.st-translation').forEach(paint));
   };
   chrome.storage.sync.get({ trColor: TR_COLOR }).then((s) => setColor(s.trColor)).catch(() => {});
+  getTargetLang().then((l) => { targetLang = l; }).catch(() => {});
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'sync' && changes.trColor) setColor(changes.trColor.newValue);
+    if (area !== 'sync') return;
+    if (changes.trColor) setColor(changes.trColor.newValue);
+    if (changes.targetLang) targetLang = validLang(changes.targetLang.newValue);
   });
 
   const io = new IntersectionObserver(async (entries) => {
@@ -61,8 +90,13 @@
       deferred.push(...els);
       return;
     }
-    const skip = await Promise.all(els.map((el) => isChinese(stripCode(textOf(el)))));
-    queue.push(...els.filter((el, i) => !skip[i] && !source.has(el)));
+    const texts = els.map(textOf);
+    const skip = await Promise.all(texts.map((t) => isInLang(stripCode(t), targetLang, pageLang)));
+    els.forEach((el, i) => {
+      if (skip[i] || source.has(el) || queue.includes(el)) return;
+      lengths.set(el, texts[i].length);
+      queue.push(el);
+    });
     scheduleFlush();
   }, { rootMargin: '300px 0px' });
 
@@ -93,7 +127,39 @@
   }
 
   function watch() {
-    mo.observe(document.body, { childList: true, subtree: true, characterData: true });
+    mo.observe(document.body, MO_OPTIONS);
+  }
+
+  // Mutations inside a shadow tree don't reach the observer on <body>, so each tree is observed too.
+  function adoptShadow(root) {
+    adoptSheet(root);
+    if (adopted.has(root)) return;
+    adopted.add(root);
+    shadowRefs.add(new WeakRef(root));
+    if (shadowRefs.size % 200 === 0) liveShadowRoots();
+    mo.observe(root, MO_OPTIONS);
+  }
+
+  // Frameworks may reassign adoptedStyleSheets on re-render, dropping ours; checked again before each translation.
+  function adoptSheet(root) {
+    try {
+      if (!shadowSheet) {
+        shadowSheet = new CSSStyleSheet();
+        shadowSheet.replaceSync(SHADOW_CSS);
+      }
+      if (!root.adoptedStyleSheets.includes(shadowSheet)) root.adoptedStyleSheets = [...root.adoptedStyleSheets, shadowSheet];
+    } catch { /* unstyled translations are still readable */ }
+  }
+
+  // Roots still on the page; references to collected ones are dropped.
+  function liveShadowRoots() {
+    const roots = [];
+    for (const ref of shadowRefs) {
+      const root = ref.deref();
+      if (!root) shadowRefs.delete(ref);
+      else if (root.host.isConnected) roots.push(root);
+    }
+    return roots;
   }
 
   function markStale(node) {
@@ -126,13 +192,18 @@
 
   function signature(el) {
     if (partial.has(el)) return ownTextOf(el)?.text;
-    return isCodeComment(el) ? commentText(el) : textWithCode(el);
+    return isCodeComment(el) ? commentText(el) : serialize(el).text;
   }
 
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-    if (msg.type === 'toggle') toggle();
-    if (msg.type === 'toggle' || msg.type === 'getState') sendResponse({ active, started });
+    if (msg.type === 'setActive') setActive(!!msg.active);
+    if (msg.type === 'setActive' || msg.type === 'getState') sendResponse({ active, started });
   });
+  // A frame loaded after its page was translated follows it; tiny frames are ads, trackers and widgets.
+  const tinyFrame = () => isFrame && (innerWidth < 200 || innerHeight < 60);
+  if (isFrame && !tinyFrame()) {
+    chrome.runtime.sendMessage({ type: 'frameState' }).then((res) => { if (res?.result) setActive(true); }, () => {});
+  }
 
   // Hover + press Ctrl alone (not as part of a shortcut like Ctrl+C) to translate a paragraph.
   let mouseX = -1;
@@ -157,8 +228,9 @@
 
   function hoverTranslate() {
     if (mouseX < 0 || !alive()) return;
-    const textNode = textNodeAt(mouseX, mouseY);
-    let target = textNode?.parentElement || document.elementFromPoint(mouseX, mouseY);
+    const deep = deepElementAt(mouseX, mouseY);
+    const textNode = deep?.getRootNode() instanceof ShadowRoot ? null : textNodeAt(mouseX, mouseY);
+    let target = textNode?.parentElement || deep;
     if (!target) return;
     const pre = target.closest('pre');
     let el;
@@ -208,6 +280,17 @@
     return items.length > 1 ? items.find((c) => c.contains(target)) || null : el;
   }
 
+  // elementFromPoint stops at shadow hosts; descend into their trees.
+  function deepElementAt(x, y) {
+    let el = document.elementFromPoint(x, y);
+    for (let root = el && shadowOf(el); root; root = shadowOf(el)) {
+      const inner = root.elementFromPoint(x, y);
+      if (!inner || inner === el) break;
+      el = inner;
+    }
+    return el;
+  }
+
   function textNodeAt(x, y) {
     const range = document.caretRangeFromPoint?.(x, y);
     const node = range?.startContainer;
@@ -225,10 +308,8 @@
     const last = [...own].reverse().find((n) => n.textContent.trim());
     const wrap = document.createElement('div');
     wrap.append(...own.map((n) => n.cloneNode(true)));
-    const text = textWithCode(wrap);
-    const links = own.flatMap((n) => (n.nodeType !== 1 ? []
-      : n.matches('a[href]') ? [n] : [...n.querySelectorAll('a[href]')]));
-    return text ? { text, before: last?.nextSibling, links } : null;
+    const payload = serialize(wrap);
+    return payload.text ? { ...payload, before: last?.nextSibling } : null;
   }
 
   // Selector match first; unknown and custom elements fall back to their computed display.
@@ -255,41 +336,67 @@
     return !!el.querySelector(BLOCK_SELECTOR) || [...el.querySelectorAll('*')].some(isBlock);
   }
 
-  function linksOf(el) {
-    return partial.get(el)?.links ?? [...el.querySelectorAll('a[href]')].filter((a) => !a.closest('.st-translation'));
-  }
-
-  // Inline <code> is sent wrapped in backticks and links as <aN>…</aN>, N indexing linksOf(el).
-  function textWithCode(el) {
+  // Text for the translator plus shallow copies of its inline elements (els) and <code> elements (codes) to rebuild
+  // them in the translation. Inline <code> is sent wrapped in backticks, formatted spans as <aN>…</aN>.
+  function serialize(el) {
     const clone = el.cloneNode(true);
-    clone.querySelectorAll('.st-translation,script,style').forEach((n) => n.remove());
-    const anchors = [...clone.querySelectorAll('a[href]')];
-    clone.querySelectorAll(HIDDEN_SELECTOR).forEach((n) => n.remove());
+    // CSS-hidden spans would otherwise leak into the text; skipped while the whole block is hidden (collapsed, etc.).
+    if (el.isConnected && el.checkVisibility?.()) {
+      const copies = clone.querySelectorAll('*');
+      el.querySelectorAll('*').forEach((n, i) => {
+        if (n.checkVisibility && !n.checkVisibility()) copies[i].remove();
+      });
+    }
+    clone.querySelectorAll(`.st-translation,script,style,${HIDDEN_SELECTOR}`).forEach((n) => n.remove());
     clone.querySelectorAll('br').forEach((n) => n.replaceWith('\n'));
-    clone.querySelectorAll('code').forEach((n) => n.replaceWith(`\`${n.textContent}\``));
-    anchors.forEach((a, i) => {
-      if (!clone.contains(a)) return;
-      a.replaceWith(a.textContent.trim() ? `<a${i}>${a.textContent}</a${i}>` : a.textContent);
+    const codes = [];
+    clone.querySelectorAll('code').forEach((n) => {
+      codes.push(n.cloneNode(true));
+      n.replaceWith(`\`${n.textContent}\``);
     });
-    return clone.textContent.replace(/[^\S\n]+/g, ' ').replace(/ ?\n ?/g, '\n').trim();
+    let tags = [...clone.querySelectorAll(FORMAT_SELECTOR)];
+    if (tags.length > MAX_TAGS) tags = tags.filter((t) => t.matches('a[href]'));
+    const els = tags.map((t) => t.cloneNode(false));
+    // Innermost first (reverse document order), so outer tags wrap the inner ones' markers.
+    for (let i = tags.length - 1; i >= 0; i--) {
+      const t = tags[i];
+      t.replaceWith(t.textContent.trim() ? `<a${i}>${t.textContent}</a${i}>` : t.textContent);
+    }
+    const text = clone.textContent.replace(/[^\S\n]+/g, ' ').replace(/ ?\n ?/g, '\n').trim();
+    return { text, els, codes };
   }
 
   function stripCode(text) {
     return text.replace(/`[^`]*`/g, '').replace(/<\s*\/?\s*a\s*\d+\s*>/gi, '');
   }
 
-  function toggle() {
-    active = !active;
+  async function setActive(on) {
+    if (on === active || (on && tinyFrame())) return;
+    active = on;
     document.documentElement.classList.toggle('st-hidden', !active);
+    if (!active) return;
+    if (!started) {
+      started = true;
+      watch();
+    }
+    pageLangReady ??= detectPageLang().then((l) => { pageLang = l; }, () => {});
+    await pageLangReady;
     if (!active) return;
     // Rescan on every activation: content added while hidden was ignored by the observer.
     scan(document.body);
     deferred.splice(0).forEach((el) => el.isConnected && io.observe(el));
     flush();
-    if (!started) {
-      started = true;
-      watch();
-    }
+  }
+
+  // Detected from a sample of the main text; the lang attribute is often a template default.
+  async function detectPageLang() {
+    const root = document.querySelector('main,article,[role="main"]') || document.body;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => (n.parentElement?.closest(PAGE_SKIP_SELECTOR) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    });
+    let sample = '';
+    while (sample.length < 3000 && walker.nextNode()) sample += `${walker.currentNode.textContent} `;
+    return (await detectLang(sample.replace(/\s+/g, ' '))) || baseLang(document.documentElement.lang);
   }
 
   function hasOwnText(el) {
@@ -310,17 +417,24 @@
 
   // `translate="no"` / .notranslate on <html> or <body> must not block the whole page.
   function inPageSkip(el) {
-    const s = el.closest(PAGE_SKIP_SELECTOR);
+    const s = (el.host ?? el).closest(PAGE_SKIP_SELECTOR);
     return !!s && s !== document.documentElement && s !== document.body;
   }
 
   // Group text nodes by their nearest block; a block that also holds nested blocks translates only its own text.
+  // Shadow trees met on the way are scanned the same way.
   function scan(root) {
     const blocks = new Set();
+    const shadows = [];
     if (!inPageSkip(root)) {
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
         acceptNode: (n) => {
-          if (n.nodeType === 1) return n.matches(PAGE_SKIP_SELECTOR) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_SKIP;
+          if (n.nodeType === 1) {
+            if (n.matches(PAGE_SKIP_SELECTOR)) return NodeFilter.FILTER_REJECT;
+            const shadow = shadowOf(n);
+            if (shadow) shadows.push(shadow);
+            return NodeFilter.FILTER_SKIP;
+          }
           return /\p{L}/u.test(n.textContent) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
         },
       });
@@ -328,6 +442,10 @@
         const block = blockOf(walker.currentNode.parentElement);
         if (block) blocks.add(block);
       }
+    }
+    for (const shadow of shadows) {
+      adoptShadow(shadow);
+      scan(shadow);
     }
     for (const el of blocks) {
       if (done.has(el)) continue;
@@ -410,36 +528,59 @@
     return before.slice(before.lastIndexOf('\n') + 1).match(/^[ \t]*/)[0];
   }
 
-  function textOf(el) {
-    if (partial.has(el)) return partial.get(el).text;
-    if (isCodeComment(el)) return commentText(el);
-    return el.querySelector('code,a[href]') ? textWithCode(el) : el.innerText.trim();
+  function payloadOf(el) {
+    if (partial.has(el)) return partial.get(el);
+    if (isCodeComment(el)) return { text: commentText(el) };
+    return el.querySelector(`code,${FORMAT_SELECTOR}`) ? serialize(el) : { text: el.innerText.trim() };
   }
 
-  // Backtick spans become <code> and <aN> tags shallow clones of the source links; built with nodes, never HTML.
-  function renderTranslation(holder, text, links) {
-    const codeNodes = (s) => s.replace(/<\s*\/?\s*a\s*\d+\s*>/gi, '').split(/`([^`\n]+)`/).map((part, i) => {
-      if (i % 2 === 0) return part;
-      const code = document.createElement('code');
-      code.textContent = part;
-      return code;
-    });
-    const parts = text.split(LINK_TAG_RE);
-    const nodes = [];
-    for (let i = 0; i < parts.length; i += 3) {
-      nodes.push(...codeNodes(parts[i]));
-      if (i + 1 >= parts.length) break;
-      const src = links[parts[i + 1]];
-      if (!src) {
-        nodes.push(...codeNodes(parts[i + 2]));
-        continue;
+  function textOf(el) {
+    return payloadOf(el).text;
+  }
+
+  // Lets AI engines resolve ambiguous words; untrusted page data, fenced off as such in the prompt.
+  function pageContext() {
+    const meta = document.querySelector('meta[name="description"],meta[property="og:description"]');
+    return { title: document.title, description: meta?.content || '' };
+  }
+
+  // Rebuilds the inline elements from <aN> tags (shallow clones of the source ones) and backtick code; built with
+  // nodes, never HTML. Unknown, repeated or unmatched tags are dropped; a close tag also closes tags misnested in it.
+  function renderTranslation(holder, text, { els = [], codes = [] } = {}) {
+    holder.replaceChildren();
+    const stack = [{ node: holder, i: -1 }];
+    const append = (s) => stack.at(-1).node.append(...textNodes(s, codes));
+    let last = 0;
+    for (const m of text.matchAll(TAG_RE)) {
+      append(text.slice(last, m.index));
+      last = m.index + m[0].length;
+      const i = Number(m[2]);
+      const isOpen = stack.some((s) => s.i === i);
+      if (!m[1]) {
+        if (!els[i] || isOpen) continue;
+        const node = els[i].cloneNode(false);
+        node.removeAttribute('id');
+        stack.at(-1).node.append(node);
+        stack.push({ node, i });
+      } else if (isOpen) {
+        while (stack.pop().i !== i);
       }
-      const a = src.cloneNode(false);
-      a.removeAttribute('id');
-      a.append(...codeNodes(parts[i + 2]));
-      nodes.push(a);
     }
-    holder.replaceChildren(...nodes);
+    append(text.slice(last));
+  }
+
+  // Backtick spans become copies of the source <code> with the same text (a plain <code> otherwise), newlines <br>.
+  function textNodes(s, codes) {
+    return s.split(/`([^`\n]+)`/).flatMap((part, i) => {
+      if (i % 2) {
+        const src = codes.find((c) => c.textContent === part);
+        const code = src ? src.cloneNode(true) : document.createElement('code');
+        if (src) code.removeAttribute('id');
+        else code.textContent = part;
+        return [code];
+      }
+      return part.split('\n').flatMap((line, j) => (j ? [document.createElement('br'), line] : [line]));
+    });
   }
 
   // After the extension is reloaded or updated, this orphaned script can no longer reach chrome.* APIs.
@@ -454,17 +595,19 @@
     return false;
   }
 
+  // Throttled rather than debounced, so a steady stream of intersections during scrolling can't postpone it.
   function scheduleFlush() {
-    clearTimeout(flushTimer);
-    flushTimer = setTimeout(flush, 100);
+    flushTimer ??= setTimeout(flush, 100);
   }
 
   // Cap in-flight batches so fast scrolling on long pages doesn't trigger rate limits (HTTP 429).
   function flush() {
-    if (!alive()) return;
+    clearTimeout(flushTimer);
+    flushTimer = null;
+    if (!alive() || !active || !queue.length || running >= MAX_CONCURRENT) return;
+    prioritize();
     while (active && queue.length && running < MAX_CONCURRENT) {
-      // SPAs may have removed queued elements before their turn.
-      const batch = queue.splice(0, BATCH_SIZE).filter((el) => el.isConnected);
+      const batch = takeBatch();
       if (!batch.length) continue;
       running++;
       translateBatch(batch).finally(() => {
@@ -474,10 +617,41 @@
     }
   }
 
+  // On-screen paragraphs first in reading order, then those below, then above. Ones scrolled far away (or hidden)
+  // go back to the observer, which queues them again when they come near.
+  function prioritize() {
+    const h = innerHeight;
+    const far = Math.max(2 * h, 1000);
+    const keyed = [];
+    for (const el of queue.splice(0)) {
+      // SPAs may have removed queued elements before their turn.
+      if (!el.isConnected) continue;
+      const r = el.getBoundingClientRect();
+      const key = r.bottom <= 0 ? -r.bottom * 2 : r.top >= h ? r.top - h : r.top - h - 1;
+      if ((!r.width && !r.height) || key > far) io.observe(el);
+      else keyed.push([key, el]);
+    }
+    keyed.sort((a, b) => a[0] - b[0]);
+    queue.push(...keyed.map(([, el]) => el));
+  }
+
+  // Packs short paragraphs together up to a size budget; a long one goes alone.
+  function takeBatch() {
+    const batch = [];
+    let chars = 0;
+    while (queue.length && batch.length < MAX_BATCH_ITEMS) {
+      const len = lengths.get(queue[0]) ?? 200;
+      if (batch.length && chars + len > MAX_BATCH_CHARS) break;
+      chars += len;
+      batch.push(queue.shift());
+    }
+    return batch.filter((el) => el.isConnected);
+  }
+
   async function translateBatch(els, hover = false) {
-    const texts = els.map(textOf);
-    const links = els.map(linksOf);
-    els.forEach((el) => source.set(el, signature(el)));
+    const payloads = els.map(payloadOf);
+    const sigs = els.map(signature);
+    els.forEach((el, i) => source.set(el, sigs[i]));
     const holders = els.map((el) => {
       const holder = document.createElement('font');
       holder.className = hover ? 'st-translation st-hover st-loading' : 'st-translation st-loading';
@@ -487,23 +661,34 @@
       // A retry may run after the page changed, so the stored anchor can be gone.
       const before = partial.get(el)?.before;
       el.insertBefore(holder, before?.parentNode === el ? before : null);
+      const root = el.getRootNode();
+      if (root instanceof ShadowRoot) adoptSheet(root);
       return holder;
     });
-    let res;
-    try {
-      res = await chrome.runtime.sendMessage({ type: 'translate', texts });
-    } catch (e) {
-      res = { ok: false, error: chrome.runtime?.id ? String(e) : '扩展已更新，请刷新页面' };
-    }
-    holders.forEach((h, i) => {
+    const fill = (i, text) => {
+      const h = holders[i];
       h.classList.remove('st-loading');
-      if (res?.ok) {
-        const text = res.result[i] || '';
-        if (h.classList.contains('st-code')) h.textContent = `\n${lineIndent(els[i])}${text}`;
-        else renderTranslation(h, text, links[i]);
+      if (h.classList.contains('st-code')) h.textContent = `\n${lineIndent(els[i])}${text}`;
+      else renderTranslation(h, text, payloads[i]);
+    };
+    // AI engines stream: paragraphs fill in as they arrive, then the final reply settles them all.
+    const res = await translateStream(payloads.map((p) => p.text), pageContext(), (i, text) => {
+      if (text && holders[i]?.isConnected) fill(i, text);
+    });
+    if (!res.ok && !chrome.runtime?.id) res.error = '扩展已更新，请刷新页面';
+    holders.forEach((h, i) => {
+      // The page rewrote the paragraph while we waited: drop the reply, checkStale translates the new text.
+      if (!h.isConnected) return;
+      if (signature(els[i]) !== sigs[i]) {
+        h.remove();
+        return;
+      }
+      h.classList.remove('st-loading');
+      if (res.ok) {
+        fill(i, res.result[i] || '');
       } else {
         h.classList.add('st-error');
-        h.textContent = `[翻译失败] ${res?.error || ''}`;
+        h.textContent = `[翻译失败] ${res.error || ''}`;
         h.title = '点击重试';
         h.onclick = (ev) => {
           ev.preventDefault();

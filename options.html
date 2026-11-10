@@ -4,14 +4,31 @@
   <meta charset="UTF-8">
   <title>小 A 翻译 设置</title>
   <link rel="stylesheet" href="ui.css">
+  <link rel="stylesheet" href="youtube.css">
   <style>
-    body { padding: 40px 16px 64px; background: var(--page); }
+    body { background: var(--page); }
+    a { color: inherit; }
 
-    .page { display: grid; gap: 24px; max-width: 560px; margin: 0 auto; }
-    .page-header { display: flex; gap: 12px; align-items: center; padding: 0 4px; }
-    .page-header img { width: 40px; height: 40px; border-radius: var(--radius); }
-    .page-header h1 { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.2; }
-    .page-header p { margin: 4px 0 0; color: var(--muted-foreground); }
+    .layout {
+      display: grid; grid-template-columns: 184px minmax(0, 640px); gap: 48px;
+      justify-content: center; padding: 40px 24px 96px;
+    }
+    .nav { position: sticky; top: 40px; align-self: start; display: grid; gap: 2px; }
+    .brand { display: flex; gap: 10px; align-items: center; padding: 0 10px 20px; }
+    .brand img { width: 32px; height: 32px; border-radius: 8px; }
+    .brand b { display: block; font-weight: 600; line-height: 1.2; }
+    .brand small { color: var(--muted-foreground); font-size: 12px; }
+    .nav a {
+      display: flex; align-items: center; height: 34px; padding: 0 10px;
+      border-radius: calc(var(--radius) - 2px); color: var(--muted-foreground);
+      font-weight: 500; text-decoration: none; transition: background-color .15s, color .15s;
+    }
+    .nav a:hover, .nav a.active { background: var(--accent); color: var(--foreground); }
+
+    main { display: grid; gap: 48px; }
+    main > section { scroll-margin-top: 24px; }
+    .section-title { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.3; }
+    .section-desc { margin: 4px 0 16px; color: var(--muted-foreground); font-size: 13px; }
 
     .card {
       background: var(--card);
@@ -19,41 +36,30 @@
       border-radius: calc(var(--radius) + 4px);
       box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     }
-    .card-header { padding: 20px 24px 0; }
-    .card-title { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.2; }
-    .card-description { margin: 4px 0 0; color: var(--muted-foreground); font-size: 13px; }
-    .card-content { display: grid; gap: 20px; padding: 20px 24px 24px; }
-    .card-content.settings { gap: 0; padding: 8px 24px; }
+    .card + .card { margin-top: 16px; }
+    .card-content { display: grid; gap: 16px; padding: 20px 24px; }
+    .card-content.settings { gap: 0; padding: 4px 24px; }
 
     .setting { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 14px 0; }
     .setting + .setting { border-top: 1px solid var(--border); }
     .setting .hint { margin-top: 4px; }
     .setting .control { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
     .setting select { width: 200px; }
-    .card-footer {
-      position: sticky; bottom: 0;
-      display: flex; align-items: center; gap: 12px;
-      padding: 16px 24px; border-top: 1px solid var(--border);
-      background: var(--card);
-      border-radius: 0 0 calc(var(--radius) + 4px) calc(var(--radius) + 4px);
-    }
 
     .field { display: grid; gap: 8px; }
-    label { font-weight: 500; line-height: 1; }
+    label { font-weight: 500; line-height: 1.2; }
     .hint { margin: 0; color: var(--muted-foreground); font-size: 13px; }
 
-    .usage { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--muted-foreground); font-size: 13px; }
-    .usage a { color: var(--foreground); }
-
-    input, select {
+    input, select, textarea {
       width: 100%; height: 36px; padding: 4px 12px;
       border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px);
       background: transparent; color: inherit; font: inherit;
       box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
       outline: none; transition: border-color .15s, box-shadow .15s;
     }
-    input::placeholder { color: var(--muted-foreground); }
-    input:focus-visible, select:focus-visible {
+    input::placeholder, textarea::placeholder { color: var(--muted-foreground); }
+    textarea { height: auto; padding: 8px 12px; line-height: 1.6; resize: vertical; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+    input:focus-visible, select:focus-visible, textarea:focus-visible {
       border-color: var(--ring);
       box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
     }
@@ -62,6 +68,7 @@
       background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center;
     }
     select option { background: var(--card); color: var(--foreground); }
+    input[type="color"] { width: 56px; padding: 2px 4px; cursor: pointer; }
 
     .profiles { display: grid; gap: 12px; }
     .profile {
@@ -85,45 +92,120 @@
     .key-wrap button { position: absolute; top: 2px; right: 2px; height: 30px; padding: 0 10px; font-size: 12px; }
     .section-head { display: flex; justify-content: space-between; align-items: center; }
     .empty { margin: 0; padding: 16px; border: 1px dashed var(--border); border-radius: var(--radius); text-align: center; }
-
-    #trColor { width: 56px; padding: 2px 4px; cursor: pointer; }
     .test-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-    #status, .test-status { color: var(--success); font-size: 13px; }
-    .test-status.fail, #status.fail { color: var(--destructive); }
-    #status.dirty { color: var(--muted-foreground); }
+    .test-status { color: var(--success); font-size: 13px; }
+    .test-status.fail { color: var(--destructive); }
+
+    .preview { border-bottom: 1px solid var(--border); }
+    .web-preview { padding: 20px 24px; line-height: 1.7; }
+    .web-preview p { margin: 0; }
+    .web-preview .tr { margin-top: 0.25em; color: var(--st-tr-color, #6366f1); }
+    .yt-preview {
+      position: relative; height: 200px; overflow: hidden;
+      border-radius: calc(var(--radius) + 3px) calc(var(--radius) + 3px) 0 0;
+      background: radial-gradient(circle at 30% 30%, #3f4a5c, #12161d 70%);
+    }
+    .yt-preview .st-yt-line span { cursor: default; }
+
+    .shortcut { display: inline-flex; gap: 4px; }
+    .usage { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--muted-foreground); font-size: 13px; }
+
+    #toast {
+      position: fixed; right: 24px; bottom: 24px; padding: 8px 14px;
+      border-radius: var(--radius); background: var(--primary); color: var(--primary-foreground);
+      font-size: 13px; box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+      opacity: 0; transform: translateY(8px); transition: opacity .2s, transform .2s; pointer-events: none;
+    }
+    #toast.show { opacity: 1; transform: none; }
+
+    @media (max-width: 760px) {
+      .layout { grid-template-columns: minmax(0, 1fr); gap: 16px; padding-top: 0; }
+      .nav {
+        top: 0; z-index: 10; display: flex; gap: 4px; overflow-x: auto;
+        margin: 0 -24px; padding: 10px 24px; background: var(--page); border-bottom: 1px solid var(--border);
+      }
+      .nav a { flex-shrink: 0; }
+      .brand { display: none; }
+      .setting { flex-wrap: wrap; }
+    }
   </style>
 </head>
 <body>
-  <div class="page">
-  <header class="page-header">
-    <img src="icons/icon-128.png" alt="">
-    <div>
-      <h1>小 A 翻译</h1>
-      <p>极简双语翻译 · 网页与 YouTube 字幕 · 目标语言：简体中文</p>
+  <div class="layout">
+  <nav class="nav" aria-label="设置分区">
+    <div class="brand">
+      <img src="icons/icon-128.png" alt="">
+      <div><b>小 A 翻译</b><small>设置</small></div>
     </div>
-  </header>
+    <a href="#general">通用</a>
+    <a href="#engines">翻译服务</a>
+    <a href="#web">网页翻译</a>
+    <a href="#youtube">YouTube 字幕</a>
+    <a href="#glossary-section">术语表</a>
+    <a href="#data">数据</a>
+    <a href="#about">关于</a>
+  </nav>
 
-  <section class="card">
-    <div class="card-header">
-      <h2 class="card-title">翻译服务</h2>
-      <p class="card-description">网页、字幕与划词翻译共用；修改后点击下方「保存」</p>
-    </div>
-
-    <div class="card-content">
-      <div class="field">
-        <label for="engine">当前使用</label>
-        <select id="engine"></select>
-        <p class="hint">也可以在扩展弹出面板中随时切换</p>
-      </div>
-
-      <div class="field">
-        <div class="section-head">
-          <label>AI 翻译服务</label>
-          <button id="add" class="btn-outline">添加</button>
+  <main>
+  <section id="general">
+    <h2 class="section-title">通用</h2>
+    <p class="section-desc">所有修改即时保存，也可在扩展弹出面板中切换常用项</p>
+    <div class="card">
+      <div class="card-content settings">
+        <div class="setting">
+          <div>
+            <label for="targetLang">目标语言</label>
+            <p class="hint">网页、字幕与划词翻译的译文语言；已是该语言的段落不再翻译</p>
+          </div>
+          <div class="control"><select id="targetLang"></select></div>
         </div>
-        <p class="hint">任意 OpenAI 兼容接口，如 DeepSeek（https://api.deepseek.com/v1）</p>
-        <div id="profiles" class="profiles"></div>
-        <p id="empty" class="empty hint">还没有 AI 服务，点击「添加」配置</p>
+        <div class="setting">
+          <div>
+            <label>翻译 / 切换译文</label>
+            <p class="hint">翻译整页，再次触发切换显示 / 隐藏</p>
+          </div>
+          <div class="control"><span class="shortcut" data-command="toggle-translate"></span></div>
+        </div>
+        <div class="setting">
+          <div>
+            <label>独立翻译窗口</label>
+            <p class="hint">可拖到桌面任意位置的翻译小窗口</p>
+          </div>
+          <div class="control"><span class="shortcut" data-command="open-window"></span></div>
+        </div>
+        <div class="setting">
+          <div>
+            <label>快捷键</label>
+            <p class="hint">在浏览器的扩展快捷键页面中修改</p>
+          </div>
+          <div class="control"><button id="shortcuts" class="btn-outline">修改快捷键</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="engines">
+    <h2 class="section-title">翻译服务</h2>
+    <p class="section-desc">网页、字幕与划词翻译共用；AI 服务的修改会自动保存</p>
+    <div class="card">
+      <div class="card-content">
+        <div class="field">
+          <label for="engine">当前使用</label>
+          <select id="engine"></select>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-content">
+        <div class="field">
+          <div class="section-head">
+            <label>AI 翻译服务</label>
+            <button id="add" class="btn-outline">添加</button>
+          </div>
+          <p class="hint">任意 OpenAI 兼容接口，如 DeepSeek（https://api.deepseek.com/v1）；译文流式显示，并参考页面标题理解语境</p>
+          <div id="profiles" class="profiles"></div>
+          <p id="empty" class="empty hint">还没有 AI 服务，点击「添加」配置</p>
+        </div>
       </div>
     </div>
 
@@ -149,78 +231,143 @@
         </div>
       </div>
     </template>
-
-    <div class="card-footer">
-      <button id="save" class="btn-primary">保存</button><span id="status"></span>
-    </div>
   </section>
 
-  <section class="card">
-    <div class="card-header">
-      <h2 class="card-title">显示</h2>
-      <p class="card-description">修改后立即生效，也可在扩展弹出面板中调整</p>
-    </div>
-    <div class="card-content settings">
-      <div class="setting">
-        <div>
-          <label for="trColor">译文颜色</label>
-          <p class="hint">网页双语对照与 YouTube 字幕中译文的文字颜色</p>
-        </div>
-        <div class="control">
-          <input id="trColor" type="color">
-          <button id="resetColor" class="btn-outline">恢复默认</button>
-        </div>
+  <section id="web">
+    <h2 class="section-title">网页翻译</h2>
+    <p class="section-desc">整页双语对照与悬停翻译的显示效果</p>
+    <div class="card">
+      <div class="preview web-preview" id="webPreview" aria-hidden="true">
+        <p>Good translation should feel invisible: the original stays where it is, with the translation right below it.</p>
+        <p class="tr">好的翻译应当让人察觉不到：原文留在原处，译文紧随其下。</p>
       </div>
-      <div class="setting">
-        <div>
-          <label for="ytTrOnly">YouTube 字幕</label>
-          <p class="hint">打开字幕（CC）后的显示方式</p>
-        </div>
-        <div class="control">
-          <select id="ytTrOnly">
-            <option value="">双语（原文 + 译文）</option>
-            <option value="1">仅显示译文</option>
-          </select>
+      <div class="card-content settings">
+        <div class="setting">
+          <div>
+            <label for="trColor">译文颜色</label>
+          </div>
+          <div class="control">
+            <input id="trColor" type="color">
+            <button id="resetColor" class="btn-outline">恢复默认</button>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="card">
-    <div class="card-header">
-      <h2 class="card-title">数据</h2>
-    </div>
-    <div class="card-content settings">
-      <div class="setting">
-        <div>
-          <label>翻译缓存 <span id="cacheSize" class="hint"></span></label>
-          <p class="hint">缓存到浏览器关闭为止；译文有误时可手动清除</p>
+  <section id="youtube">
+    <h2 class="section-title">YouTube 字幕</h2>
+    <p class="section-desc">在视频上拖动字幕可调整高度，双击恢复默认位置</p>
+    <div class="card">
+      <div class="preview yt-preview" aria-hidden="true">
+        <div class="st-yt-overlay" id="ytPreview">
+          <div class="st-yt-line st-yt-src"><span>So today we're going to talk about the new features</span></div>
+          <div class="st-yt-line st-yt-tr"><span>今天我们来聊聊这些新功能</span></div>
         </div>
-        <div class="control">
-          <button id="clearCache" class="btn-outline">清除缓存</button>
+      </div>
+      <div class="card-content settings">
+        <div class="setting">
+          <div><label for="ytTrOnly">显示方式</label></div>
+          <div class="control">
+            <select id="ytTrOnly">
+              <option value="">双语（原文 + 译文）</option>
+              <option value="1">仅显示译文</option>
+            </select>
+          </div>
+        </div>
+        <div class="setting">
+          <div><label for="ytTrColor">译文颜色</label></div>
+          <div class="control">
+            <input id="ytTrColor" type="color">
+            <button id="resetYtColor" class="btn-outline">恢复默认</button>
+          </div>
+        </div>
+        <div class="setting">
+          <div><label for="ytFontScale">字号</label></div>
+          <div class="control">
+            <select id="ytFontScale">
+              <option value="0.8">小</option>
+              <option value="1">标准</option>
+              <option value="1.2">大</option>
+              <option value="1.4">较大</option>
+              <option value="1.6">特大</option>
+            </select>
+          </div>
+        </div>
+        <div class="setting">
+          <div><label for="ytBgOpacity">背景</label></div>
+          <div class="control">
+            <select id="ytBgOpacity">
+              <option value="0">无（文字描边）</option>
+              <option value="0.5">半透明</option>
+              <option value="0.75">标准</option>
+              <option value="0.9">深色</option>
+            </select>
+          </div>
+        </div>
+        <div class="setting">
+          <div>
+            <label for="ytAutoCC">自动打开字幕</label>
+            <p class="hint">有字幕的视频自动打开 CC；手动关闭后该视频不再自动打开</p>
+          </div>
+          <div class="control">
+            <select id="ytAutoCC">
+              <option value="1">开启</option>
+              <option value="">关闭</option>
+            </select>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="card">
-    <div class="card-header">
-      <h2 class="card-title">使用方式</h2>
-    </div>
-    <div class="card-content">
-      <ul class="usage">
-        <li>点击扩展图标或按快捷键翻译整页，再次触发切换显示 / 隐藏</li>
-        <li>鼠标悬停在段落上单独按一下 <kbd>Ctrl</kbd> 翻译该段落，再按一次移除</li>
-        <li>选中文字后点击旁边的「译」划词翻译；点 📌 固定后，新选中的文字直接在浮窗中翻译</li>
-        <li>YouTube 打开字幕（CC）即显示双语字幕</li>
-        <li>用快捷键或扩展面板打开独立翻译窗口，可拖到桌面任意位置</li>
-        <li><a href="#" id="shortcuts">修改快捷键</a></li>
-      </ul>
+  <section id="glossary-section">
+    <h2 class="section-title">术语表</h2>
+    <p class="section-desc">仅 AI 翻译生效；只把待翻译文字中出现的术语发给 AI</p>
+    <div class="card">
+      <div class="card-content">
+        <textarea id="glossary" rows="8" spellcheck="false" aria-label="术语表" placeholder="每行一个术语，例如：&#10;LLM = 大语言模型&#10;Kubernetes&#10;（只写术语表示保留原文不翻译；# 开头的行是注释）"></textarea>
+      </div>
     </div>
   </section>
+
+  <section id="data">
+    <h2 class="section-title">数据</h2>
+    <p class="section-desc">翻译结果长期保存在本地，超出上限时自动淘汰最久未用的译文</p>
+    <div class="card">
+      <div class="card-content settings">
+        <div class="setting">
+          <div>
+            <label>翻译缓存 <span id="cacheSize" class="hint"></span></label>
+            <p class="hint">译文有误或更换了模型想重新翻译时可清除</p>
+          </div>
+          <div class="control"><button id="clearCache" class="btn-outline">清除缓存</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="about">
+    <h2 class="section-title">关于</h2>
+    <p class="section-desc">版本 <span id="version"></span></p>
+    <div class="card">
+      <div class="card-content">
+        <ul class="usage">
+          <li>点击扩展图标或按快捷键翻译整页，再次触发切换显示 / 隐藏</li>
+          <li>鼠标悬停在段落上单独按一下 <kbd>Ctrl</kbd> 翻译该段落，再按一次移除</li>
+          <li>选中文字后点击旁边的「译」划词翻译；点 📌 固定后，新选中的文字直接在浮窗中翻译</li>
+          <li>YouTube 有字幕的视频自动打开字幕（CC）并显示双语字幕，支持 Shorts 与直播</li>
+          <li>用快捷键或扩展面板打开独立翻译窗口，可拖到桌面任意位置</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+  </main>
   </div>
+  <div id="toast" role="status"></div>
   <script src="config.js"></script>
   <script src="utils.js"></script>
+  <script src="cache.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

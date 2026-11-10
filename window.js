@@ -33,11 +33,12 @@ async function translate() {
   if (!res?.ok) lastText = '';
 }
 
-// "auto": Chinese text goes to English, everything else to Chinese; the option label shows the pick.
+// "auto": the target language, or English (Chinese for English targets) when the text is already in it.
 async function targetLang(text) {
   const select = $('lang');
   if (select.value !== 'auto') return select.value;
-  const lang = (await isChinese(text)) ? 'en' : TARGET_LANG;
+  const target = await getTargetLang();
+  const lang = !(await isInLang(text, target)) ? target : baseLang(target) === 'en' ? 'zh-CN' : 'en';
   select.options[0].textContent = `自动（${select.querySelector(`[value="${lang}"]`).textContent}）`;
   return lang;
 }
@@ -78,8 +79,9 @@ chrome.runtime.onMessage.addListener((msg) => {
 });
 
 // Restore the language before taking the pending text, so it is translated only once.
+$('lang').append(...Object.entries(LANG_LABELS).map(([code, label]) => new Option(`译为${label}`, code)));
 chrome.storage.local.get({ windowLang: 'auto' })
-  .then((s) => { $('lang').value = s.windowLang; }, () => {})
+  .then((s) => { $('lang').value = Object.hasOwn(LANG_NAMES, s.windowLang) ? s.windowLang : 'auto'; }, () => {})
   .then(() => chrome.runtime.sendMessage({ type: 'takeWindowText' }))
   .then((res) => { if (res?.ok && res.result) show(res.result); })
   .catch(() => {});
