@@ -6,6 +6,7 @@
   const MAX_CHARS = 3000;
   const STORE_KEY = 'selectionBox';
   const ICONS = {
+    speak: ['M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z', 'M16 9a5 5 0 0 1 0 6', 'M19.364 18.364a9 9 0 0 0 0-12.728'],
     pin: ['M12 17v5', 'M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z'],
     copy: ['M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z', 'M4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2'],
     check: ['M20 6 9 17l-5-5'],
@@ -49,6 +50,7 @@
     }
     .head button:hover, .head button[aria-pressed="true"] { background: var(--hover); color: var(--fg); }
     .head button[aria-pressed="true"] svg { fill: currentColor; }
+    .head button.speak[aria-pressed="true"] svg { fill: none; }
     .head svg { width: 15px; height: 15px; }
     .body { flex: 1; overflow: auto; padding: 8px 12px 12px; }
     .src { max-height: 6.4em; overflow: auto; margin-bottom: 6px; color: var(--muted); font-size: 13px; white-space: pre-wrap; }
@@ -85,11 +87,12 @@
   const host = document.createElement('a-translate-selection');
   const root = host.attachShadow({ mode: 'closed' });
   const btn = h('button', { className: 'btn', title: '翻译选中文字', hidden: true }, '译');
+  const speakBtn = h('button', { className: 'speak', title: '朗读原文' }, icon('speak'));
   const pinBtn = h('button', { title: '固定' }, icon('pin'));
   const copyBtn = h('button', { title: '复制译文' }, icon('copy'));
   const popoutBtn = h('button', { title: '在独立窗口中打开（可离开当前网页）' }, icon('popout'));
   const closeBtn = h('button', { title: '关闭（Esc）' }, icon('close'));
-  const head = h('div', { className: 'head' }, h('span', { className: 'title' }, '小 A 翻译'), pinBtn, copyBtn, popoutBtn, closeBtn);
+  const head = h('div', { className: 'head' }, h('span', { className: 'title' }, '小 A 翻译'), speakBtn, pinBtn, copyBtn, popoutBtn, closeBtn);
   const src = h('div', { className: 'src' });
   const tr = h('div', { className: 'tr' });
   const box = h('div', { className: 'box', hidden: true }, head, h('div', { className: 'body' }, src, tr));
@@ -181,7 +184,38 @@
     translate(text);
   }
 
+  // Script ranges are unambiguous; otherwise ask Chrome's language detector (unreliable for single words, so default to English).
+  async function speechLang(text) {
+    if (/[\u3040-\u30ff]/.test(text)) return 'ja-JP';
+    if (/[\uac00-\ud7af]/.test(text)) return 'ko-KR';
+    if (/\p{Script=Han}/u.test(text)) return 'zh-CN';
+    if (/\p{Script=Cyrillic}/u.test(text)) return 'ru-RU';
+    try {
+      const { languages } = await chrome.i18n.detectLanguage(text);
+      if (languages?.[0]?.percentage >= 50 && languages[0].language !== 'und') return languages[0].language;
+    } catch {}
+    return 'en-US';
+  }
+
+  function stopSpeaking() {
+    speechSynthesis.cancel();
+    speakBtn.setAttribute('aria-pressed', 'false');
+  }
+
+  async function speak() {
+    if (speechSynthesis.speaking) return stopSpeaking();
+    const text = src.textContent;
+    if (!text) return;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = await speechLang(text);
+    u.rate = text.length < 30 ? 0.9 : 1;
+    u.onend = u.onerror = () => speakBtn.setAttribute('aria-pressed', 'false');
+    speakBtn.setAttribute('aria-pressed', 'true');
+    speechSynthesis.speak(u);
+  }
+
   async function translate(text) {
+    stopSpeaking();
     const id = ++seq;
     src.textContent = text;
     tr.className = 'tr loading';
@@ -200,11 +234,13 @@
   function close() {
     box.hidden = true;
     seq++;
+    stopSpeaking();
   }
 
   // Keep the page selection when clicking our controls.
   root.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
   btn.addEventListener('click', () => open(pending));
+  speakBtn.addEventListener('click', speak);
   pinBtn.addEventListener('click', () => {
     setPinned(!pinned);
     save();

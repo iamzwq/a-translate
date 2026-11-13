@@ -417,7 +417,8 @@
 
   // `translate="no"` / .notranslate on <html> or <body> must not block the whole page.
   function inPageSkip(el) {
-    const s = (el.host ?? el).closest(PAGE_SKIP_SELECTOR);
+    // Only ShadowRoot (nodeType 11) maps to its host; custom elements (e.g. YouTube) may define their own `host` prop.
+    const s = (el.nodeType === 11 ? el.host : el).closest(PAGE_SKIP_SELECTOR);
     return !!s && s !== document.documentElement && s !== document.body;
   }
 
