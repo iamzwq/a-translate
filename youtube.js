@@ -24,6 +24,7 @@
   // Track selected in the player ({ lang, kind, tlang, live }), polled by youtube-hook.js; null if unknown.
   let selected = null;
   let overlay = null;
+  let nativeNotice = null;
   let shownKey = null;
   let inflight = 0;
   let retryAt = 0;
@@ -305,8 +306,14 @@
     const player = activePlayer();
     const v = player?.querySelector('video');
     const ccOff = player?.querySelector('.ytp-subtitles-button')?.getAttribute('aria-pressed') === 'false';
-    if (!v || ccOff || selected?.tlang || isNativeLang(selected?.lang)) {
+    if (!v || ccOff) {
       hide();
+      return;
+    }
+    if (selected?.tlang || isNativeLang(selected?.lang)) {
+      showNativeNotice(player, selected?.tlang
+        ? `YouTube 自动翻译已开启（目标语言：${selected.tlang}），扩展保留原生字幕。`
+        : `当前字幕已是目标语言（${selected.lang}），无需翻译。`);
       return;
     }
     const t = v.currentTime * 1000;
@@ -317,8 +324,22 @@
     } else if (selected?.live) {
       updateLive(player);
     } else {
-      hide();
+      showNativeNotice(player, `尚未获取到可用的字幕数据${selected?.lang ? `（字幕语言：${selected.lang}）` : ''}。`
+        + '可尝试关闭再打开 CC，或刷新页面。');
     }
+  }
+
+  function showNativeNotice(player, reason) {
+    hide();
+    if (!nativeNotice) {
+      nativeNotice = document.createElement('div');
+      nativeNotice.className = 'st-yt-native-notice';
+      nativeNotice.setAttribute('role', 'status');
+    }
+    if (nativeNotice.parentElement !== player) player.append(nativeNotice);
+    const text = `小 A 翻译 · 使用 YouTube 原生字幕：${reason}`;
+    if (nativeNotice.textContent !== text) nativeNotice.textContent = text;
+    nativeNotice.hidden = false;
   }
 
   // Live streams have no caption track to fetch: read YouTube's own (hidden) caption lines and translate them once
@@ -389,10 +410,12 @@
   function hide() {
     document.querySelectorAll('.st-yt-on').forEach((p) => p.classList.remove('st-yt-on'));
     if (overlay) overlay.hidden = true;
+    if (nativeNotice) nativeNotice.hidden = true;
     shownKey = null;
   }
 
   function render(player, s) {
+    if (nativeNotice) nativeNotice.hidden = true;
     if (!overlay) createOverlay();
     if (overlay.parentElement !== player) {
       hide();

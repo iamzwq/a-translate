@@ -3,6 +3,28 @@
   visibility: hidden !important;
 }
 
+.st-yt-native-notice {
+  position: absolute;
+  top: 12%;
+  left: 12px;
+  right: 12px;
+  z-index: 40;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  box-sizing: border-box;
+  padding: 6px 10px;
+  border-radius: 5px;
+  background: rgba(8, 8, 8, 0.8);
+  color: #fff;
+  font: 13px/1.5 Roboto, Arial, "Microsoft YaHei", sans-serif;
+  pointer-events: none;
+}
+
+.st-yt-native-notice[hidden],
+.ad-showing .st-yt-native-notice {
+  display: none !important;
+}
+
 /* --st-yt-bottom is the dragged height; Shorts start higher, clear of their title and buttons. */
 .st-yt-overlay {
   position: absolute;
