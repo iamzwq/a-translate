@@ -70,10 +70,23 @@ const handlers = {
   },
 };
 
+// Chrome stops a service worker after 30s without extension events or API calls, even mid-fetch,
+// so a slow AI reply used to be cut off; an API call every 20s keeps it alive while work is pending.
+let pendingWork = 0;
+let keepAliveTimer;
+async function keepAlive(promise) {
+  if (pendingWork++ === 0) keepAliveTimer = setInterval(chrome.runtime.getPlatformInfo, 20000);
+  try {
+    return await promise;
+  } finally {
+    if (--pendingWork === 0) clearInterval(keepAliveTimer);
+  }
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const handler = handlers[msg.type];
   if (!handler) return;
-  handler(msg, sender).then(
+  keepAlive(handler(msg, sender)).then(
     (result) => sendResponse({ ok: true, result }),
     (e) => sendResponse({ ok: false, error: String(e.message || e) }),
   );
@@ -91,11 +104,11 @@ chrome.runtime.onConnect.addListener((port) => {
       try { port.postMessage(m); } catch { /* the page went away */ }
     };
     try {
-      const result = await translate(msg.texts, await getTargetLang(), {
+      const result = await keepAlive(translate(msg.texts, await getTargetLang(), {
         context: requestContext(msg.context),
         onItem: (i, text) => post({ type: 'item', i, text }),
         signal: abort.signal,
-      });
+      }));
       post({ type: 'done', result });
     } catch (e) {
       if (!abort.signal.aborted) post({ type: 'error', error: String(e.message || e) });
@@ -234,13 +247,64 @@ async function googleRequest(text, lang, signal) {
 // Retries 429/503 after Retry-After (seconds or HTTP date), else exponential backoff.
 async function fetchRetry(url, init, retries = 3) {
   for (let i = 0; ; i++) {
-    const res = await fetch(url, init);
+    const res = await fetchStall(url, init);
     if (i >= retries || (res.status !== 429 && res.status !== 503)) return res;
     const after = res.headers.get('Retry-After');
     let wait = after === null ? NaN : /^\d+$/.test(after) ? after * 1000 : Date.parse(after) - Date.now();
     if (!(wait > 0)) wait = 1000 * 2 ** i;
     await new Promise((r) => setTimeout(r, Math.min(wait, 10000)));
   }
+}
+
+// Gives up when the server sends nothing for this long: no response headers yet, or no next chunk of the body.
+// Otherwise a hung request would keep the service worker alive and hold one of the page's request slots forever.
+const STALL_MS = 60000;
+
+async function fetchStall(url, { signal, ...init }) {
+  const ctl = new AbortController();
+  if (signal?.aborted) ctl.abort(signal.reason);
+  signal?.addEventListener('abort', () => ctl.abort(signal.reason), { once: true });
+  let timer;
+  let timedOut = false;
+  const arm = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      timedOut = true;
+      ctl.abort();
+    }, STALL_MS);
+  };
+  const fail = (e) => {
+    clearTimeout(timer);
+    return timedOut ? new Error(`请求超时：${STALL_MS / 1000} 秒内没有收到回应`) : e;
+  };
+  arm();
+  let res;
+  try {
+    res = await fetch(url, { ...init, signal: ctl.signal });
+  } catch (e) {
+    throw fail(e);
+  }
+  clearTimeout(timer);
+  if (!res.body) return res;
+  const reader = res.body.getReader();
+  const body = new ReadableStream({
+    async pull(c) {
+      arm();
+      try {
+        const { done, value } = await reader.read();
+        clearTimeout(timer);
+        if (done) c.close();
+        else c.enqueue(value);
+      } catch (e) {
+        c.error(fail(e));
+      }
+    },
+    cancel(reason) {
+      clearTimeout(timer);
+      return reader.cancel(reason);
+    },
+  });
+  return new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers });
 }
 
 // Vendor-specific switches to disable thinking: Qwen / GLM, Doubao, DeepSeek / vLLM, SGLang, Ollama.
