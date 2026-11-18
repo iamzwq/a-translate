@@ -46,11 +46,11 @@
   },
   "commands": {
     "toggle-translate": {
-      "suggested_key": { "default": "Alt+A" },
+      "suggested_key": { "default": "Alt+Q" },
       "description": "翻译 / 切换译文"
     },
     "open-window": {
-      "suggested_key": { "default": "Alt+D" },
+      "suggested_key": { "default": "Alt+E" },
       "description": "打开独立翻译窗口"
     }
   },
