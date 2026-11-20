@@ -1,5 +1,4 @@
 const $ = (id) => document.getElementById(id);
-const ADD_ENGINE = '__add__';
 let tabId;
 
 function render(state) {
@@ -35,11 +34,7 @@ async function init() {
 
   const { engineId, engines } = await loadSettings();
   const sel = $('engine');
-  sel.replaceChildren(
-    new Option('Google 翻译', GOOGLE_ID),
-    ...engines.map((e) => new Option(engineLabel(e), e.id)),
-    new Option('＋ 添加 AI 服务…', ADD_ENGINE),
-  );
+  sel.replaceChildren(...engineOptions(engines));
   sel.value = engineId;
   sel.title = sel.selectedOptions[0].text;
 }

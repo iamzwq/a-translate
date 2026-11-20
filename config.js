@@ -52,6 +52,9 @@ const YT_DEFAULTS = { ytTrOnly: false, ytAutoCC: true, ytFontScale: 1, ytBgOpaci
 
 // Google is built in; only AI engines are stored, as `engines: [{ id, ...AI_DEFAULTS }]` plus the selected `engineId`.
 const GOOGLE_ID = 'google';
+const ADD_ENGINE = '__add__';
+
+const isValidEngineId = (engines, id) => id === GOOGLE_ID || engines.some((e) => e.id === id);
 
 const AI_DEFAULTS = {
   name: '',
@@ -63,6 +66,6 @@ const AI_DEFAULTS = {
 async function loadSettings() {
   const s = await chrome.storage.sync.get({ engineId: GOOGLE_ID, engines: [] });
   const engines = s.engines.map((e) => ({ ...AI_DEFAULTS, ...e }));
-  const engineId = engines.some((e) => e.id === s.engineId) ? s.engineId : GOOGLE_ID;
+  const engineId = isValidEngineId(engines, s.engineId) ? s.engineId : GOOGLE_ID;
   return { engineId, engines };
 }

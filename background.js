@@ -54,7 +54,7 @@ const handlers = {
   translate: async (msg) => translate(
     msg.texts,
     Object.hasOwn(LANG_NAMES, msg.lang) ? msg.lang : await getTargetLang(),
-    { context: requestContext(msg.context) },
+    { context: requestContext(msg.context), engineId: msg.engineId },
   ),
   // Whether the tab's top frame is translated, for frames that load later.
   frameState: async (_msg, sender) => {
@@ -147,9 +147,11 @@ chrome.windows.onBoundsChanged.addListener(async (win) => {
 });
 
 // onItem(index, text) gets each result as soon as it is known: cache hits at once, AI replies while they stream.
-async function translate(texts, lang, { context = null, onItem = null, signal } = {}) {
+// `engineId` overrides the selected engine (the standalone window has its own); an unknown one falls back to it.
+async function translate(texts, lang, { context = null, onItem = null, signal, engineId: override } = {}) {
   const { engineId, engines } = await loadSettings();
-  const ai = engines.find((e) => e.id === engineId);
+  const useId = isValidEngineId(engines, override) ? override : engineId;
+  const ai = engines.find((e) => e.id === useId);
   const { glossary } = ai ? await chrome.storage.local.get({ glossary: '' }) : { glossary: '' };
   // The glossary changes AI output, so it is part of the key.
   const keys = await cacheKeys(`${lang}|${ai ? `${ai.apiBase}|${ai.model}|${glossary}` : GOOGLE_ID}`, texts);

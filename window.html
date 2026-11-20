@@ -22,12 +22,14 @@
       box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
     }
 
-    .bar { display: flex; align-items: center; gap: 8px; }
-    .bar .hint { flex: 1; color: var(--muted-foreground); font-size: 12px; }
+    .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .bar .hint { flex: 1 1 180px; color: var(--muted-foreground); font-size: 12px; }
+    .bar .controls { display: flex; gap: 8px; margin-left: auto; min-width: 0; }
     .bar button { height: 32px; padding: 0 12px; }
     .bar select {
-      height: 32px; padding: 0 8px; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px);
+      min-width: 0; max-width: 132px; height: 32px; padding: 0 8px; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px);
       background: var(--background); color: var(--foreground); font: inherit; cursor: pointer; outline: none;
+      text-overflow: ellipsis;
     }
     .bar select:focus-visible { box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent); }
 
@@ -45,10 +47,13 @@
   <textarea id="input" placeholder="输入或粘贴要翻译的文字" autofocus></textarea>
   <div class="bar">
     <span class="hint">停止输入后自动翻译，<kbd>Ctrl</kbd> + <kbd>Enter</kbd> 立即翻译</span>
-    <select id="lang" title="翻译成">
-      <option value="auto">自动</option>
-    </select>
-    <button id="copy" class="btn-outline">复制译文</button>
+    <div class="controls">
+      <select id="engine" title="翻译服务"></select>
+      <select id="lang" title="翻译成">
+        <option value="auto">自动</option>
+      </select>
+      <button id="copy" class="btn-outline">复制译文</button>
+    </div>
   </div>
   <div id="result" class="result"></div>
   <script src="config.js"></script>

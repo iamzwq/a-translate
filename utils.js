@@ -69,6 +69,14 @@ function engineLabel(e) {
   return e.name || e.model;
 }
 
+function engineOptions(engines) {
+  return [
+    new Option('Google 翻译', GOOGLE_ID),
+    ...engines.map((e) => new Option(engineLabel(e), e.id)),
+    new Option('＋ 添加 AI 服务…', ADD_ENGINE),
+  ];
+}
+
 // Wires a color input and its reset button to `key` in storage.sync.
 function bindColor(key, input, reset, fallback = TR_COLOR) {
   const show = (c) => { input.value = isColor(c) ? c : fallback; };
